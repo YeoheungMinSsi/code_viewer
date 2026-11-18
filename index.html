@@ -1,0 +1,262 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>코드 산책 · Python 구조 뷰어</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#223c34;font:15px/1.5 system-ui,sans-serif;height:100dvh;display:flex;flex-direction:column}
+header,footer{display:flex;align-items:center;gap:14px;padding:12px 20px;background:white;flex-wrap:wrap}header{border-bottom:1px solid #cedbd3}h1{font-size:20px;margin:0;margin-right:auto}footer{border-top:1px solid #cedbd3;font-size:13px}#status{margin-right:auto}
+button,input::file-selector-button{background:white;color:#284438;border:1px solid #b8c8be;border-radius:6px;padding:6px 10px;cursor:pointer}input{max-width:100%}
+main{position:relative;flex:1;overflow:hidden;touch-action:none;cursor:grab;background-color:#f5f7f4;background-image:radial-gradient(#c3cfc5 1px,transparent 1px);background-size:20px 20px}main.drag{cursor:grabbing}
+aside{position:absolute;top:40%;width:100%;text-align:center;color:#52685c;pointer-events:none}aside strong{display:block;font-size:22px;color:#304d3d;margin-bottom:8px}
+article{position:absolute;left:0;top:0;transform-origin:0 0;width:max-content;display:flex;align-items:flex-start;gap:48px}
+section,details{display:flex;flex-direction:column;align-items:center}details{display:block;width:100%;text-align:center}
+section>details+details{margin-top:24px}
+summary{display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;margin:auto;padding:10px;border:1.5px solid #688a76;background:white;width:240px;overflow-wrap:anywhere}
+summary::-webkit-details-marker{display:none}.cls>summary{width:124px;height:124px;border-radius:50%;background:#d7ebda;padding:17px}.cls b{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+small,em{font-size:11px;color:#4e695a;font-style:normal}pre{position:relative;width:max-content;max-width:720px;overflow:auto;margin:12px 0;padding:14px;background:#20362d;color:#f2fbf4;text-align:left;cursor:text}details[open]>pre::before{display:none}i{color:#adc8b9;margin-right:2ch;user-select:none;font-style:normal}summary:focus-visible,button:focus-visible{outline:3px solid #337959}
+.file{width:280px}
+.file>summary{position:relative;width:150px;min-height:170px;margin-left:65px;padding:30px 12px 18px;background:#e1ecff;clip-path:polygon(0 0,calc(100% - 28px) 0,100% 28px,100% 100%,0 100%);border:1px solid #6986ad}
+.file>summary::after{content:"";position:absolute;right:0;top:0;width:28px;height:28px;background:#adc4e7;border-left:1px solid #6986ad;border-bottom:1px solid #6986ad}
+.file>div{padding-top:24px}.file>summary:focus-visible{background:#b5d0ff}
+.file section{align-items:flex-start}.file summary{margin-left:20px}.file>summary{margin-left:65px}.file .cls>summary{margin-left:78px}
+
+details:not(.file){position:relative}
+
+:is(.fn,.var,.imp)[open]>pre{position:absolute;left:294px;top:0;margin:0;width:600px;max-height:420px}
+.cls[open]>section{position:absolute;left:294px;top:0;width:280px}
+details:not([open])>:not(summary){display:none!important}
+.var>summary{background:#ffe6aa;clip-path:polygon(8% 0,92% 0,100% 50%,92% 100%,8% 100%,0 50%);padding-inline:24px}
+summary{user-select:none;cursor:grab}.var>summary:focus-visible{background:#ffcb64}
+#edges{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}.file{position:relative}
+.call{font:inherit;padding:0;border:0;border-radius:0;background:transparent;color:#8ee5ff;text-decoration:underline}.selected>summary{outline:3px solid #2685c5}.imp>summary{border-radius:12px;background:#ece3ff;border-color:#9b83b9}
+#menu{position:fixed;z-index:10;padding:6px;background:white;border:1px solid #a7b7ad;box-shadow:0 4px 20px #0002;border-radius:8px}#menu button{display:block;width:100%;text-align:left;margin:3px 0}
+</style><header><h1>코드 산책</h1><input type="file" multiple accept=".py" aria-label="Python 파일 추가"><label>폴더 추가 <input id="folder" type="file" webkitdirectory multiple></label></header>
+<main aria-label="코드 캔버스"><aside><strong>Python 파일들을 여기에 놓으세요</strong>○ 클래스　 ▭ 함수　⬡ 변수　 ·　 최대 1 MiB</aside><article><svg id="edges" width="1" height="1" aria-hidden="true"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10" fill="#2685c5"/></marker></defs><path fill="none" stroke="#799481" stroke-width="2"/><g id="calls" fill="none" stroke="#2685c5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/></svg></article></main>
+<footer><span id="status" role="status">빈 곳을 드래그해 이동 · 휠로 확대 및 축소</span><div><button id="minus" aria-label="축소">−</button> <button id="reset" title="처음 위치와 배율로 복원">100%</button> <button id="plus" aria-label="확대">＋</button></div></footer>
+<div id="menu" hidden><button id="remove-file">파일을 화면에서 제거</button><button id="remove-folder">폴더 전체를 화면에서 제거</button></div><script>
+const input=document.querySelector('input'), output=document.querySelector('article'), statusEl=document.querySelector('#status');
+const canvas=document.querySelector('main'), hint=document.querySelector('aside'), reset=document.querySelector('#reset');
+let x,y,scale,drag=null;
+function paint(){
+ output.style.transform='translate('+x+'px,'+y+'px) scale('+scale+')';
+ reset.textContent=Math.round(scale*100)+'%';
+ canvas.style.backgroundPosition=x+'px '+y+'px';
+ canvas.style.backgroundSize=(20*scale)+'px '+(20*scale)+'px';
+}
+function home(){scale=1;x=24;y=32;paint()}
+function zoom(factor,cx=canvas.clientWidth/2,cy=canvas.clientHeight/2){
+ const next=Math.max(.25,Math.min(3,scale*factor)), ratio=next/scale;
+ x=cx-(cx-x)*ratio;y=cy-(cy-y)*ratio;scale=next;paint();
+}
+reset.onclick=home;document.querySelector('#minus').onclick=()=>zoom(1/1.2);
+document.querySelector('#plus').onclick=()=>zoom(1.2);
+canvas.onwheel=e=>{if(e.target.closest('pre')&&!e.ctrlKey&&e.shiftKey)return;
+ e.preventDefault();const r=canvas.getBoundingClientRect();zoom(Math.exp(-Math.sign(e.deltaY)*.1),e.clientX-r.left,e.clientY-r.top)};
+const path=document.querySelector('#edges > path');
+let frame=0,skipClick=false;
+const activeCalls=new Map();
+function routeAround(start,end,boxes){
+ const xs=[...new Set([start.x,end.x,...boxes.flatMap(r=>[r.l-1,r.r+1])])].sort((a,b)=>a-b);
+ const ys=[...new Set([start.y,end.y,...boxes.flatMap(r=>[r.t-1,r.b+1])])].sort((a,b)=>a-b);
+ const key=(i,j)=>i+','+j, begin=[xs.indexOf(start.x),ys.indexOf(start.y)],goal=key(xs.indexOf(end.x),ys.indexOf(end.y));
+ const queue=[begin],previous=new Map([[key(...begin),null]]);
+ for(let n=0;n<queue.length;n++){
+ const [i,j]=queue[n],k=key(i,j);
+ if(k===goal){
+ const points=[];for(let at=k;at!==null;at=previous.get(at)){const [u,v]=at.split(',').map(Number);points.push({x:xs[u],y:ys[v]})}
+ return points.reverse();
+ }
+ for(const [u,v] of [[i-1,j],[i+1,j],[i,j-1],[i,j+1]]){
+ if(u<0||v<0||u>=xs.length||v>=ys.length||previous.has(key(u,v)))continue;
+ const blocked=boxes.some(r=>i===u?xs[i]>r.l&&xs[i]<r.r&&Math.max(ys[j],ys[v])>r.t&&Math.min(ys[j],ys[v])<r.b:ys[j]>r.t&&ys[j]<r.b&&Math.max(xs[i],xs[u])>r.l&&Math.min(xs[i],xs[u])<r.r);
+ if(!blocked){previous.set(key(u,v),k);queue.push([u,v])}
+ }
+ }
+ return [start,end];
+}
+// Keep the file's source column fixed; pack right-hand panels into free space.
+function layout(){
+ for(const file of output.querySelectorAll('.file')){
+ file.style.width='280px';
+ if(!file.open)continue;
+ const base=file.getBoundingClientRect(),occupied=[];
+ let right=280;
+ const rect=el=>{
+ const r=el.getBoundingClientRect();
+ return {x:(r.left-base.left)/scale,y:(r.top-base.top)/scale,w:r.width/scale,h:r.height/scale};
+ };
+ const visible=[...file.querySelectorAll('summary')].filter(el=>!el.parentElement.parentElement.closest('details:not([open])'));
+ for(const el of visible){
+ if(!el.parentElement.closest('.cls[open]>section'))occupied.push(rect(el));
+ }
+ function place(panel){
+ panel.style.top='0px';
+ let r=rect(panel),offset=0,hit;
+ while((hit=occupied.find(o=>r.x<o.x+o.w+8&&r.x+r.w+8>o.x&&r.y<o.y+o.h+24&&r.y+r.h+24>o.y))){
+ const dy=hit.y+hit.h+24-r.y;offset+=dy;r.y+=dy;
+ }
+ panel.style.top=offset+'px';occupied.push(r);right=Math.max(right,r.x+r.w);
+ }
+ function visit(item){
+ if(!item.open)return;
+ const body=item.querySelector(':scope > pre');
+ if(body){place(body);return}
+ const section=item.querySelector(':scope > section');
+ if(section){
+ place(section);
+ for(const child of section.querySelectorAll(':scope > details'))visit(child);
+ }
+ }
+ for(const item of file.querySelectorAll(':scope > div > section > details'))visit(item);
+ file.style.width=Math.ceil(right)+'px';
+ }
+}
+function redraw(){
+ if(frame)return;
+ frame=requestAnimationFrame(()=>{
+ frame=0;
+ layout();
+ const base=output.getBoundingClientRect(),segments=[];
+ function link(a,b,horizontal=false){
+ const r=a.getBoundingClientRect(),p=b.getBoundingClientRect();
+ const ax=horizontal?r.right:r.left+r.width/2, ay=horizontal?r.top+r.height/2:r.bottom;
+ const bx=horizontal?p.left:p.left+p.width/2,by=horizontal?p.top+p.height/2:p.top;
+ segments.push('M'+((ax-base.left)/scale)+' '+((ay-base.top)/scale)+' L'+((bx-base.left)/scale)+' '+((by-base.top)/scale));
+ }
+ function branch(parent,items,horizontal){
+ let previous=parent;
+ for(const item of items){
+ const node=item.querySelector(':scope > summary');
+ link(previous,node,previous===parent&&horizontal);
+ previous=node;
+ if(!item.open)continue;
+ const code=item.querySelector(':scope > pre');
+ if(code)link(node,code,true);
+ const children=[...item.querySelectorAll(':scope > section > details')];
+ if(children.length)branch(node,children,true);
+ }
+ }
+ for(const file of output.querySelectorAll('.file[open]')){
+ branch(file.querySelector(':scope > summary'),[...file.querySelectorAll(':scope > div > section > details')],false);
+ }
+ path.setAttribute('d',segments.join(' '));
+ const group=document.querySelector('#calls');group.replaceChildren();
+ output.querySelectorAll('.selected').forEach(n=>n.classList.remove('selected'));
+ for(const [call,target] of activeCalls){
+ if(call.closest('details:not([open])')||target.parentElement.closest('details:not([open])'))continue;
+ const source=call.closest('details'),a=source.querySelector('summary').getBoundingClientRect(),b=target.querySelector('summary').getBoundingClientRect();
+ const ax=(a.right-base.left)/scale,ay=(a.top+a.height/2-base.top)/scale;
+ const bx=(b.right-base.left)/scale,by=(b.top+b.height/2-base.top)/scale;
+ const obstacles=[...output.querySelectorAll('summary,pre')].filter(el=>!el.closest('details:not([open])') || el.matches('summary')&&!el.parentElement.parentElement.closest('details:not([open])')).map(el=>{
+ const r=el.getBoundingClientRect();return {l:(r.left-base.left)/scale-8,r:(r.right-base.left)/scale+8,t:(r.top-base.top)/scale-8,b:(r.bottom-base.top)/scale+8};
+ });
+ const route=routeAround({x:ax+10,y:ay},{x:bx+10,y:by},obstacles);
+ const edge=document.createElementNS('http://www.w3.org/2000/svg','path');
+ edge.setAttribute('d','M'+ax+' '+ay+route.map(p=>' L'+p.x+' '+p.y).join(' ')+' L'+bx+' '+by);
+ group.append(edge);source.classList.add('selected');target.classList.add('selected');
+ }
+
+ });
+}
+const observer=new ResizeObserver(redraw);
+canvas.onpointerdown=e=>{
+ if(e.button!==0||e.target.closest('pre')||drag)return;
+ const handle=e.target.closest('summary');
+ const owner=handle?.parentElement;
+ const node=owner?.matches('.cls')?owner.closest('.file'):owner;
+ skipClick=false;
+ drag={id:e.pointerId,handle,node,sx:e.clientX,sy:e.clientY,ox:node?Number(node.dataset.x||0):x,oy:node?Number(node.dataset.y||0):y};
+ (handle||canvas).setPointerCapture(e.pointerId);
+};
+canvas.onpointermove=e=>{
+ if(!drag||drag.id!==e.pointerId)return;
+ const dx=e.clientX-drag.sx,dy=e.clientY-drag.sy;
+ if(!drag.moved && Math.hypot(dx,dy)<4)return;
+ drag.moved=true;
+ if(drag.node){
+ const n=drag.node;n.dataset.x=drag.ox+dx/scale;n.dataset.y=drag.oy+dy/scale;
+ n.style.transform='translate('+n.dataset.x+'px,'+n.dataset.y+'px)';redraw();
+ }else{x=drag.ox+dx;y=drag.oy+dy;paint()}
+};
+canvas.onlostpointercapture=()=>{skipClick=!!drag?.moved;drag=null};
+function collapseChildren(node){
+ for(const [call,target] of activeCalls){
+ if(node.contains(call)||node.contains(target)){
+ activeCalls.delete(call);call.setAttribute('aria-pressed','false');
+ }
+ }
+ node.querySelectorAll('details').forEach(child=>{child.open=false;child.style.transform='';delete child.dataset.x;delete child.dataset.y});
+}
+canvas.addEventListener('click',e=>{
+ if(skipClick&&e.detail){e.preventDefault();skipClick=false;return}
+ const owner=e.target.closest('summary')?.parentElement;
+ if(owner){
+ e.preventDefault();
+ if(owner.open)collapseChildren(owner);
+ owner.open=!owner.open;redraw();
+ }
+},true);
+output.addEventListener('click',e=>{
+ const call=e.target.closest('.call');if(!call)return;
+ const file=call.closest('.file');
+ let target;
+ if(call.dataset.target.includes('|')){
+ const [module,name]=call.dataset.target.split('|');
+ const candidates=[...output.querySelectorAll('.file')].filter(p=>p.dataset.module===module);
+ if(candidates.length!==1){statusEl.textContent='호출 대상을 찾을 수 없거나 파일 경로가 중복됩니다: '+module;return}
+ target=[...candidates[0].querySelectorAll(':scope > div > section > .fn')].find(n=>n.dataset.name===name);
+ }else target=file.querySelector('[data-line="'+call.dataset.target+'"]');
+ if(!target){statusEl.textContent="지원하지 않거나 찾을 수 없는 호출 대상입니다.";return}
+ if(activeCalls.has(call)){activeCalls.delete(call);call.setAttribute('aria-pressed','false')}
+ else{
+ activeCalls.set(call,target);call.setAttribute('aria-pressed','true');
+ for(let node=target.parentElement;node&&node!==output;node=node.parentElement)if(node.matches('details'))node.open=true;
+ }
+ redraw();
+});
+home();
+async function load(file){
+ const panel=document.createElement('details'), title=document.createElement('summary'), content=document.createElement('div');
+ panel.className='file';
+ const relative=file.webkitRelativePath?file.webkitRelativePath.split('/').slice(1).join('/'):file.name;
+ panel.dataset.folder=file.webkitRelativePath?file.webkitRelativePath.split('/')[0]:'';
+ panel.dataset.module=relative.replace(/\.py$/i,'').replace(/\/__init__$/,'').replaceAll('/','.');
+ const kind=document.createElement('small'),name=document.createElement('b');
+ kind.textContent='PYTHON 파일';name.textContent=relative;title.append(kind,name);content.textContent='분석 중…';
+ panel.append(title,content);output.append(panel);hint.hidden=true;
+ try{
+ if(!/\.py$/i.test(file.name)||file.size>1048576)throw Error('1 MiB 이하의 .py 파일을 선택하세요.');
+ const res=await fetch('/outline',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+ const body=await res.text();
+ if(!res.ok)throw Error(body);
+ content.innerHTML=body;
+ content.querySelectorAll('section section').forEach(section=>{
+ if(section.parentElement.matches('section'))section.replaceWith(...section.childNodes);
+ });
+ observer.observe(panel);redraw();
+ }catch(e){content.textContent=e.message}
+ statusEl.textContent='파일 '+output.querySelectorAll('.file').length+'개 · 파일·클래스 드래그로 파일 전체 이동';
+}
+document.querySelector('#folder').onchange=e=>{Array.from(e.target.files).filter(f=>/\.py$/i.test(f.name)&&!f.webkitRelativePath.split('/').some(p=>['.venv','venv','__pycache__','.git'].includes(p))).forEach(load);e.target.value=''};
+const menu=document.querySelector('#menu');let menuFile=null;
+canvas.addEventListener('contextmenu',e=>{
+ const file=e.target.closest('.file');if(!file)return;
+ e.preventDefault();menuFile=file;menu.hidden=false;
+ document.querySelector('#remove-folder').hidden=!file.dataset.folder;
+ menu.style.left=Math.min(e.clientX,window.innerWidth-260)+'px';
+ menu.style.top=Math.min(e.clientY,window.innerHeight-110)+'px';
+});
+function removeFiles(folder){
+ if(!menuFile)return;
+ const files=folder?[...output.querySelectorAll('.file')].filter(f=>f.dataset.folder===menuFile.dataset.folder):[menuFile];
+ for(const file of files){collapseChildren(file);observer.unobserve(file);file.remove()}
+ menu.hidden=true;menuFile=null;
+ const count=output.querySelectorAll('.file').length;hint.hidden=count>0;statusEl.textContent='파일 '+count+'개';redraw();
+}
+document.querySelector('#remove-file').onclick=()=>removeFiles(false);
+document.querySelector('#remove-folder').onclick=()=>removeFiles(true);
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('#menu'))menu.hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')menu.hidden=true});
+input.onchange=()=>{Array.from(input.files).forEach(load);input.value=''};
+document.ondragover=e=>e.preventDefault();
+document.ondrop=e=>{e.preventDefault();Array.from(e.dataTransfer.files).forEach(load)};
+output.addEventListener('toggle',e=>{if(e.target.matches('details:not([open])'))collapseChildren(e.target);redraw()},true);
+</script></html>

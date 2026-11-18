@@ -1,0 +1,31 @@
+# Python 캐시 및 가상 환경
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# 로컬 환경 설정 및 비밀값
+.env
+.env.*
+!.env.example
+
+# 테스트 실행 결과
+browser-verification.png
+test-results/
+playwright-report/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# 로컬에서 설치한 JavaScript 의존성
+node_modules/
+
+# 운영체제 및 편집기 임시 파일
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
