@@ -26,6 +26,17 @@ class ViewerTest(unittest.TestCase):
         self.assertEqual(root.find('details/summary/small').text, '전역변수')
         self.assertEqual(root.find('details/section/details/summary/b').text, 'method(self)')
 
+    def test_import_group(self):
+        from xml.etree.ElementTree import fromstring
+        root = fromstring(outline(b'import os\nVALUE=1\nfrom pathlib import (\n Path,\n)\ndef run():\n pass'))
+        imports = root.findall('details[@class="imp"]')
+        self.assertEqual(len(imports), 1)
+        text = ''.join(imports[0].find('pre').itertext())
+        self.assertIn('import os', text)
+        self.assertIn('from pathlib import (', text)
+        self.assertNotIn('VALUE', text)
+        self.assertEqual([i.text for i in imports[0].findall('pre/i')], ['1', '3', '4', '5'])
+
     def test_fallback_and_error(self):
         self.assertIn('&lt;script&gt;', outline(b'x = "<script>"'))
         with self.assertRaises(SyntaxError):

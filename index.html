@@ -20,21 +20,32 @@ small,em{font-size:11px;color:#4e695a;font-style:normal}pre{position:relative;wi
 
 details:not(.file){position:relative}
 
-:is(.fn,.var,.imp)[open]>pre{position:absolute;left:294px;top:0;margin:0;width:600px;max-height:420px}
+:is(.fn,.var,.imp,.entry)[open]>pre{position:absolute;left:294px;top:0;margin:0;width:600px;max-height:420px}
 .cls[open]>section{position:absolute;left:294px;top:0;width:280px}
 details:not([open])>:not(summary){display:none!important}
-.var>summary{background:#ffe6aa;clip-path:polygon(8% 0,92% 0,100% 50%,92% 100%,8% 100%,0 50%);padding-inline:24px}
+.var>summary{background:transparent;border:0;position:relative;padding-inline:24px;isolation:isolate}
+.var>summary::before,.var>summary::after{content:"";position:absolute;inset:0;z-index:-2;background:#927644;clip-path:polygon(8% 0,92% 0,100% 50%,92% 100%,8% 100%,0 50%)}
+.var>summary::after{inset:2px;z-index:-1;background:#ffe6aa}
 summary{user-select:none;cursor:grab}.var>summary:focus-visible{background:#ffcb64}
 #edges{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}.file{position:relative}
 .call{font:inherit;padding:0;border:0;border-radius:0;background:transparent;color:#8ee5ff;text-decoration:underline}.selected>summary{outline:3px solid #2685c5}.imp>summary{border-radius:12px;background:#ece3ff;border-color:#9b83b9}
+.file [role="alert"]{width:280px;white-space:pre-wrap;overflow-wrap:anywhere;text-align:left;padding:12px;color:#973b25;background:#fff0e9;border:1px solid #e0a28e}
 #menu{position:fixed;z-index:10;padding:6px;background:white;border:1px solid #a7b7ad;box-shadow:0 4px 20px #0002;border-radius:8px}#menu button{display:block;width:100%;text-align:left;margin:3px 0}
-</style><header><h1>코드 산책</h1><input type="file" multiple accept=".py" aria-label="Python 파일 추가"><label>폴더 추가 <input id="folder" type="file" webkitdirectory multiple></label></header>
-<main aria-label="코드 캔버스"><aside><strong>Python 파일들을 여기에 놓으세요</strong>○ 클래스　 ▭ 함수　⬡ 변수　 ·　 최대 1 MiB</aside><article><svg id="edges" width="1" height="1" aria-hidden="true"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10" fill="#2685c5"/></marker></defs><path fill="none" stroke="#799481" stroke-width="2"/><g id="calls" fill="none" stroke="#2685c5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/></svg></article></main>
+#explorer{position:absolute;top:85px;bottom:64px;left:0;width:235px;background:#fff;overflow:auto;z-index:2;padding:12px;border-right:1px solid #bccabd}main{margin-left:235px}#explorer input{width:100%}#explorer details{text-align:left}#explorer summary{display:list-item;width:auto;margin:8px 0;padding:4px;border:0;background:transparent;cursor:pointer}#explorer button{display:block;width:100%;text-align:left;overflow-wrap:anywhere;margin:4px 0}.focused>summary{outline:3px solid #bb641d}
+.file[hidden]{display:none!important}
+#tree details>details,#tree details>button{margin-left:14px;width:calc(100% - 14px)}
+#tree details{border-left:1px solid #d9e2db;padding-left:5px}
+.call[data-target^="?"]{color:#c6c9c7;text-decoration-style:dotted}.entry>summary{background:#dcecff;border:2px solid #5085b8}#help{font-size:13px;white-space:pre-line}.inheritance{font-size:11px;color:#815318;max-width:100%;overflow-wrap:anywhere}</style><header><h1>코드 산책</h1><input type="file" multiple aria-label="코드 파일 추가"><label>폴더 추가 <input id="folder" type="file" webkitdirectory multiple></label><button id="lesson">학습 예제</button></header>
+<nav id="explorer"><input id="search" placeholder="파일·클래스·함수 검색" aria-label="이름 검색"><p id="help" role="status">실선: 소속·작성 순서 / 점선: 호출 관계<br>코드를 실행하지 않고 읽는 도구입니다.</p><button id="next-lesson" hidden>다음 단계</button><div id="tree"></div></nav><main aria-label="코드 캔버스"><aside><strong>코드 파일을 놓거나 왼쪽 목록에서 파일을 끌어놓으세요</strong>○ 클래스　 ▭ 함수　⬡ 변수　 ·　 최대 5 MiB</aside><article><svg id="edges" width="1" height="1" aria-hidden="true"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10" fill="#2685c5"/></marker></defs><path fill="none" stroke="#799481" stroke-width="2"/><g id="calls" fill="none" stroke="#2685c5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/></svg></article></main>
 <footer><span id="status" role="status">빈 곳을 드래그해 이동 · 휠로 확대 및 축소</span><div><button id="minus" aria-label="축소">−</button> <button id="reset" title="처음 위치와 배율로 복원">100%</button> <button id="plus" aria-label="확대">＋</button></div></footer>
 <div id="menu" hidden><button id="remove-file">파일을 화면에서 제거</button><button id="remove-folder">폴더 전체를 화면에서 제거</button></div><script>
 const input=document.querySelector('input'), output=document.querySelector('article'), statusEl=document.querySelector('#status');
 const canvas=document.querySelector('main'), hint=document.querySelector('aside'), reset=document.querySelector('#reset');
 let x,y,scale,drag=null;
+let languageRequest;
+function languages(){
+ return languageRequest ||= fetch('/languages').then(r=>{if(!r.ok)throw Error('지원 언어 목록을 가져오지 못했습니다.');return r.json()}).catch(e=>{languageRequest=null;throw e});
+}
 function paint(){
  output.style.transform='translate('+x+'px,'+y+'px) scale('+scale+')';
  reset.textContent=Math.round(scale*100)+'%';
@@ -74,7 +85,7 @@ function routeAround(start,end,boxes){
 }
 // Keep the file's source column fixed; pack right-hand panels into free space.
 function layout(){
- for(const file of output.querySelectorAll('.file')){
+ for(const file of output.querySelectorAll('.file:not([hidden])')){
  file.style.width='280px';
  if(!file.open)continue;
  const base=file.getBoundingClientRect(),occupied=[];
@@ -134,14 +145,14 @@ function redraw(){
  if(children.length)branch(node,children,true);
  }
  }
- for(const file of output.querySelectorAll('.file[open]')){
+ for(const file of output.querySelectorAll('.file[open]:not([hidden])')){
  branch(file.querySelector(':scope > summary'),[...file.querySelectorAll(':scope > div > section > details')],false);
  }
  path.setAttribute('d',segments.join(' '));
  const group=document.querySelector('#calls');group.replaceChildren();
  output.querySelectorAll('.selected').forEach(n=>n.classList.remove('selected'));
  for(const [call,target] of activeCalls){
- if(call.closest('details:not([open])')||target.parentElement.closest('details:not([open])'))continue;
+ if((call.closest('summary')?call.closest('details').parentElement.closest('details:not([open])'):call.closest('details:not([open])'))||target.parentElement.closest('details:not([open])'))continue;
  const source=call.closest('details'),a=source.querySelector('summary').getBoundingClientRect(),b=target.querySelector('summary').getBoundingClientRect();
  const ax=(a.right-base.left)/scale,ay=(a.top+a.height/2-base.top)/scale;
  const bx=(b.right-base.left)/scale,by=(b.top+b.height/2-base.top)/scale;
@@ -150,6 +161,7 @@ function redraw(){
  });
  const route=routeAround({x:ax+10,y:ay},{x:bx+10,y:by},obstacles);
  const edge=document.createElementNS('http://www.w3.org/2000/svg','path');
+ if(call.classList.contains('inheritance'))edge.setAttribute('stroke','#a26d2b');
  edge.setAttribute('d','M'+ax+' '+ay+route.map(p=>' L'+p.x+' '+p.y).join(' ')+' L'+bx+' '+by);
  group.append(edge);source.classList.add('selected');target.classList.add('selected');
  }
@@ -158,7 +170,7 @@ function redraw(){
 }
 const observer=new ResizeObserver(redraw);
 canvas.onpointerdown=e=>{
- if(e.button!==0||e.target.closest('pre')||drag)return;
+ if(e.button!==0||e.target.closest('pre,.call')||drag)return;
  const handle=e.target.closest('summary');
  const owner=handle?.parentElement;
  const node=owner?.matches('.cls')?owner.closest('.file'):owner;
@@ -187,6 +199,7 @@ function collapseChildren(node){
 }
 canvas.addEventListener('click',e=>{
  if(skipClick&&e.detail){e.preventDefault();skipClick=false;return}
+ if(e.target.closest('.call'))return;
  const owner=e.target.closest('summary')?.parentElement;
  if(owner){
  e.preventDefault();
@@ -196,17 +209,27 @@ canvas.addEventListener('click',e=>{
 },true);
 output.addEventListener('click',e=>{
  const call=e.target.closest('.call');if(!call)return;
+ e.preventDefault();
+ if(call.dataset.target.startsWith('?')){statusEl.textContent=call.dataset.target.slice(1);return}
  const file=call.closest('.file');
  let target;
  if(call.dataset.target.includes('|')){
- const [module,name]=call.dataset.target.split('|');
- const candidates=[...output.querySelectorAll('.file')].filter(p=>p.dataset.module===module);
- if(candidates.length!==1){statusEl.textContent='호출 대상을 찾을 수 없거나 파일 경로가 중복됩니다: '+module;return}
+ let [module,name]=call.dataset.target.split('|');
+ if(module.startsWith('.')){
+ const level=module.match(/^\.+/)[0].length;
+ const parts=file.dataset.qualified.split('.');
+ if(!file.dataset.path.endsWith('/__init__.py'))parts.pop();
+ parts.splice(Math.max(0,parts.length-level+1));
+ module=[...parts,module.slice(level)].filter(Boolean).join('.');
+ }
+ const candidates=[...output.querySelectorAll('.file')].filter(p=>p.dataset.language===file.dataset.language&&(p.dataset.module===module||p.dataset.qualified===module));
+ if(candidates.length!==1){statusEl.textContent='대상 파일 미등록·외부 라이브러리 또는 중복 경로입니다: '+module;return}
  target=[...candidates[0].querySelectorAll(':scope > div > section > .fn')].find(n=>n.dataset.name===name);
  }else target=file.querySelector('[data-line="'+call.dataset.target+'"]');
  if(!target){statusEl.textContent="지원하지 않거나 찾을 수 없는 호출 대상입니다.";return}
  if(activeCalls.has(call)){activeCalls.delete(call);call.setAttribute('aria-pressed','false')}
  else{
+ target.closest('.file').hidden=false;hint.hidden=true;
  activeCalls.set(call,target);call.setAttribute('aria-pressed','true');
  for(let node=target.parentElement;node&&node!==output;node=node.parentElement)if(node.matches('details'))node.open=true;
  }
@@ -215,16 +238,23 @@ output.addEventListener('click',e=>{
 home();
 async function load(file){
  const panel=document.createElement('details'), title=document.createElement('summary'), content=document.createElement('div');
- panel.className='file';
+ panel.className='file';panel.hidden=!!file.webkitRelativePath;panel.dataset.path=file.webkitRelativePath||file.name;
  const relative=file.webkitRelativePath?file.webkitRelativePath.split('/').slice(1).join('/'):file.name;
  panel.dataset.folder=file.webkitRelativePath?file.webkitRelativePath.split('/')[0]:'';
+ panel.dataset.qualified=(file.webkitRelativePath||file.name).replace(/\.py$/i,'').replace(/\/__init__$/,'').replaceAll('/','.');
  panel.dataset.module=relative.replace(/\.py$/i,'').replace(/\/__init__$/,'').replaceAll('/','.');
  const kind=document.createElement('small'),name=document.createElement('b');
- kind.textContent='PYTHON 파일';name.textContent=relative;title.append(kind,name);content.textContent='분석 중…';
- panel.append(title,content);output.append(panel);hint.hidden=true;
+ kind.textContent='코드 파일';name.textContent=relative;title.append(kind,name);content.textContent='분석 중…';
+ panel.append(title,content);output.append(panel);hint.hidden=!!output.querySelector('.file:not([hidden])');
  try{
- if(!/\.py$/i.test(file.name)||file.size>1048576)throw Error('1 MiB 이하의 .py 파일을 선택하세요.');
- const res=await fetch('/outline',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+ if(file.directory)throw Error(relative+'은 가지고 올 수 없습니다. 이유: 폴더 드래그 앤 드롭은 지원하지 않습니다. 상단의 “폴더 추가”에서 이 폴더를 선택하세요.');
+ const supported=await languages();
+ const language=supported.find(item=>file.name.toLowerCase().endsWith(item.extension));
+ if(!language)throw Error(relative+'은 가지고 올 수 없습니다. 이유: 지원하는 파일 형식은 '+supported.map(item=>item.extension).join(', ')+'입니다. 폴더는 “폴더 추가”를 사용하세요.');
+ kind.textContent=language.name+' 파일';panel.dataset.language=language.id;
+ if(language.id==='java'){kind.title='Java 8: 같은 파일의 호출·상속·기본 타입 오버로딩 분석';kind.textContent='Java 파일'}
+ if(file.size>5*1024*1024)throw Error(relative+'은 5 MiB를 초과하여 가지고 올 수 없습니다.');
+ const res=await fetch('/outline',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Source-Name':encodeURIComponent(file.name)},body:file});
  const body=await res.text();
  if(!res.ok)throw Error(body);
  content.innerHTML=body;
@@ -232,31 +262,107 @@ async function load(file){
  if(section.parentElement.matches('section'))section.replaceWith(...section.childNodes);
  });
  observer.observe(panel);redraw();
- }catch(e){content.textContent=e.message}
+ }catch(e){content.textContent=e.message;content.setAttribute('role','alert');panel.open=true;observer.observe(panel);redraw()}
+ refreshTree();
  statusEl.textContent='파일 '+output.querySelectorAll('.file').length+'개 · 파일·클래스 드래그로 파일 전체 이동';
 }
-document.querySelector('#folder').onchange=e=>{Array.from(e.target.files).filter(f=>/\.py$/i.test(f.name)&&!f.webkitRelativePath.split('/').some(p=>['.venv','venv','__pycache__','.git'].includes(p))).forEach(load);e.target.value=''};
+document.querySelector('#folder').onchange=e=>{Array.from(e.target.files).filter(f=>!f.webkitRelativePath.split('/').some(p=>['.venv','venv','__pycache__','.git'].includes(p))).forEach(load);e.target.value=''};
+const tree=document.querySelector('#tree'),search=document.querySelector('#search');
+let draggedFile=null;
+function focusNode(node){
+ const file=node.closest('.file');file.hidden=false;hint.hidden=true;
+ for(let n=node.parentElement;n&&n!==output;n=n.parentElement)if(n.matches('details'))n.open=true;
+ output.querySelectorAll('.focused').forEach(n=>n.classList.remove('focused'));node.classList.add('focused');
+ redraw();requestAnimationFrame(()=>{const r=node.querySelector('summary').getBoundingClientRect(),c=canvas.getBoundingClientRect();x+=c.left+c.width/2-r.left-r.width/2;y+=c.top+80-r.top;paint()});
+}
+function refreshTree(){
+ const closed=new Set([...tree.querySelectorAll('details:not([open])')].map(n=>n.dataset.path));
+ tree.replaceChildren();const groups=new Map(),query=search.value.trim().toLowerCase();
+ for(const file of output.querySelectorAll('.file')){
+ let parent=tree,path='';
+ const parts=file.dataset.path.split('/');
+ if(!query)for(const part of parts.slice(0,-1)){
+ path+=part+'/';
+ if(!groups.has(path)){
+ const group=document.createElement('details'),title=document.createElement('summary');
+ group.dataset.path=path;group.open=!closed.has(path);title.textContent='📁 '+part;
+ title.oncontextmenu=e=>{e.preventDefault();menuPrefix=null;menuFile=file;menuPrefix=group.dataset.path;menu.hidden=false;document.querySelector('#remove-folder').hidden=false;menu.style.left=e.clientX+'px';menu.style.top=e.clientY+'px'};
+ group.append(title);parent.append(group);groups.set(path,group);
+ }parent=groups.get(path);
+ }
+ for(const node of [file,...file.querySelectorAll('.cls,.fn')]){
+ const label=node===file?file.dataset.path:node.dataset.name;
+ if(node!==file&&!query||query&&!label.toLowerCase().includes(query))continue;
+ const button=document.createElement('button');button.textContent=label;button.onclick=()=>{if(node!==file)focusNode(node)};
+ if(node===file){
+ button.draggable=true;button.title='캔버스로 끌어놓아 표시';
+ button.ondragstart=e=>{draggedFile=file;e.dataTransfer.setData('application/x-code-viewer-file','file');e.dataTransfer.effectAllowed='move'};
+ button.ondragend=()=>{draggedFile=null};
+ }
+ parent.append(button);
+ }
+ }
+}
+search.oninput=refreshTree;
+let menuPrefix=null;
 const menu=document.querySelector('#menu');let menuFile=null;
 canvas.addEventListener('contextmenu',e=>{
  const file=e.target.closest('.file');if(!file)return;
- e.preventDefault();menuFile=file;menu.hidden=false;
+ e.preventDefault();menuPrefix=null;menuFile=file;menu.hidden=false;
  document.querySelector('#remove-folder').hidden=!file.dataset.folder;
  menu.style.left=Math.min(e.clientX,window.innerWidth-260)+'px';
  menu.style.top=Math.min(e.clientY,window.innerHeight-110)+'px';
 });
 function removeFiles(folder){
  if(!menuFile)return;
- const files=folder?[...output.querySelectorAll('.file')].filter(f=>f.dataset.folder===menuFile.dataset.folder):[menuFile];
+ const files=folder?[...output.querySelectorAll('.file')].filter(f=>menuPrefix?f.dataset.path.startsWith(menuPrefix):f.dataset.folder===menuFile.dataset.folder):[menuFile];
  for(const file of files){collapseChildren(file);observer.unobserve(file);file.remove()}
- menu.hidden=true;menuFile=null;
- const count=output.querySelectorAll('.file').length;hint.hidden=count>0;statusEl.textContent='파일 '+count+'개';redraw();
+ menu.hidden=true;menuFile=null;refreshTree();
+ const count=output.querySelectorAll('.file').length;hint.hidden=!!output.querySelector('.file:not([hidden])');statusEl.textContent='파일 '+count+'개';redraw();
 }
 document.querySelector('#remove-file').onclick=()=>removeFiles(false);
 document.querySelector('#remove-folder').onclick=()=>removeFiles(true);
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#menu'))menu.hidden=true});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')menu.hidden=true});
+const help=document.querySelector('#help');
+canvas.addEventListener('click',e=>{
+ const node=e.target.closest('summary')?.parentElement;if(!node)return;
+ const explanations={cls:'클래스: 데이터와 기능을 묶는 설계도입니다.',fn:'함수: 이름을 붙인 작업입니다. 클래스 안의 함수는 메서드라고 합니다.',var:'변수: 값을 이름으로 기억합니다. 인스턴스 변수는 객체마다 따로 갖는 값입니다.',imp:'import: 다른 파일이나 라이브러리의 기능을 가져옵니다.',entry:'시작점: 프로그램 실행을 시작하는 부분입니다.',file:'파일: 관련 코드를 담은 문서입니다.'};
+ help.textContent=node.classList.contains('entry')?explanations.entry:(explanations[[...node.classList].find(k=>explanations[k])]||'');
+});
+let lessonFile=null,lessonStep=0;
+const steps=[['.entry','1. 시작점에서 order = Order()를 읽어보세요. Order 설계도로 객체를 만듭니다.'],['.cls','2. Order는 설계도, order는 만든 객체입니다. __init__은 생성 시 데이터를 준비합니다.'],['[data-name="receipt"]','3. order.receipt()는 객체의 receipt 메서드를 호출합니다.'],['[data-name="total"]','4. receipt는 total을 호출해 가격을 얻습니다.'],['[data-name="format_total"]','5. format_total이 가격을 문장으로 바꿉니다. 점선은 호출 관계이며 실제 실행 기록은 아닙니다.']];
+document.querySelector('#lesson').onclick=async()=>{
+ const response=await fetch('/learning-example');if(!response.ok)return;
+ await load(new File([await response.text()],'learning_example.py'));
+ lessonFile=output.lastElementChild;lessonStep=0;document.querySelector('#next-lesson').hidden=false;
+ showStep();
+};
+function showStep(){
+ if(!lessonFile?.isConnected)return;
+ const [selector,message]=steps[lessonStep],node=lessonFile.querySelector(selector);
+ node.open=true;focusNode(node);help.textContent=message;
+ document.querySelector('#next-lesson').textContent=lessonStep===steps.length-1?'처음부터':'다음 단계';
+}
+document.querySelector('#next-lesson').onclick=()=>{lessonStep=(lessonStep+1)%steps.length;showStep()};
 input.onchange=()=>{Array.from(input.files).forEach(load);input.value=''};
 document.ondragover=e=>e.preventDefault();
-document.ondrop=e=>{e.preventDefault();Array.from(e.dataTransfer.files).forEach(load)};
+document.ondrop=e=>{
+ e.preventDefault();
+ if(draggedFile){
+ const file=draggedFile;draggedFile=null;
+ if(!canvas.contains(e.target)||!file.isConnected)return;
+ file.hidden=false;hint.hidden=true;layout();
+ const r=file.querySelector(':scope > summary').getBoundingClientRect();
+ file.dataset.x=Number(file.dataset.x||0)+(e.clientX-r.left-r.width/2)/scale;
+ file.dataset.y=Number(file.dataset.y||0)+(e.clientY-r.top-20*scale)/scale;
+ file.style.transform='translate('+file.dataset.x+'px,'+file.dataset.y+'px)';
+ redraw();return;
+ }
+ const items=Array.from(e.dataTransfer.items||[]);
+ const directories=items.map(item=>item.webkitGetAsEntry?.()).filter(entry=>entry?.isDirectory);
+ for(const entry of directories)load({name:entry.name,size:0,directory:true});
+ Array.from(e.dataTransfer.files).filter(file=>!directories.some(entry=>entry.name===file.name)).forEach(load);
+};
 output.addEventListener('toggle',e=>{if(e.target.matches('details:not([open])'))collapseChildren(e.target);redraw()},true);
 </script></html>

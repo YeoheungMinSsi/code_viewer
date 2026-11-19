@@ -1,6 +1,6 @@
 # 코드 산책
 
-Python 소스 코드의 구조와 함수 호출 관계를 도형과 연결선으로 살펴보는 로컬 코드 뷰어입니다. 파일이나 프로젝트 폴더를 불러오면 클래스, 함수, 변수, import 선언을 분석해 확대·축소 가능한 캔버스에 표시합니다.
+Python 소스 코드의 구조·함수 호출 관계와 Java 클래스 구조를 도형과 연결선으로 살펴보는 로컬 코드 뷰어입니다. 파일이나 프로젝트 폴더를 불러오면 클래스, 함수, 변수, import 선언을 분석해 확대·축소 가능한 캔버스에 표시합니다.
 
 코드를 실행하지 않고 Python 표준 라이브러리인 `ast`로 구조를 분석합니다. 복잡한 파일을 클래스와 함수 단위로 펼쳐 보거나, 파일 사이의 함수 호출 관계를 확인하는 데 사용할 수 있습니다.
 
@@ -34,7 +34,7 @@ Python 소스 코드의 구조와 함수 호출 관계를 도형과 연결선으
 - Python 3.9 이상
 - 웹 브라우저
 
-앱 실행에는 추가 Python 패키지나 Node.js가 필요하지 않습니다.
+Python 분석만 사용할 때는 추가 패키지가 필요하지 않습니다. Java 분석은 아래 설치 과정이 필요합니다. Node.js는 앱 실행에 필요하지 않습니다.
 
 ### 시작하기
 
@@ -89,7 +89,7 @@ python3 viewer.py
 
 ## 분석 범위와 제한사항
 
-- Python 파일만 지원하며 파일당 최대 크기는 1 MiB입니다.
+- Python(.py)과 Java(.java) 파일을 지원하며 파일당 최대 크기는 5 MiB입니다.
 - 분석 가능한 문법은 서버를 실행한 Python 버전에 따라 달라집니다.
 - 단순한 같은 파일 함수 호출과 일부 `self.메서드()` 호출을 연결합니다.
 - 파일 간 호출은 명시적인 절대 import와 별칭을 지원합니다.
@@ -143,3 +143,18 @@ node test_browser.cjs
 Playwright가 기본 모듈 경로 밖에 있으면 `PLAYWRIGHT_MODULE`에 모듈 경로를 지정하세요. Chromium 저장 위치를 별도로 설정한 경우 `PLAYWRIGHT_BROWSERS_PATH`도 지정해야 합니다.
 
 브라우저 검사는 로컬 서버를 띄운 뒤 파일·폴더 업로드, 펼치기·접기, 드래그, 확대·축소, 호출 점선, import 표시와 우클릭 제거 기능을 확인합니다. 현재 브라우저 검증은 Chromium 기준입니다.
+
+## Java 구조 분석
+
+Java 8 문법의 클래스, 필드, 생성자, 메서드, main 시작점, package와 import를 기존 캔버스로 표시합니다. OrderExample.java를 불러와 Python 예제와 비교할 수 있습니다. Java 소스를 실행하거나 컴파일하지 않습니다.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python viewer.py
+```
+
+Java 파서는 javalang 0.13.0을 사용합니다. Java 호출 점선, interface·enum·record·초기화 블록 분석은 아직 지원하지 않습니다. 지원하지 않는 구문은 오류로 안내합니다.
+
+언어 분석기는 analyzers 디렉터리로 분리되어 있으며 확장자로 선택합니다. 전체 분석기 검사는 의존성 설치 후 python -m unittest -v로 실행합니다.

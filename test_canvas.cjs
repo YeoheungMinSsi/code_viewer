@@ -2,13 +2,13 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 function element(tag) {
-  return {tag,children:[],style:{},dataset:{},append(...items){this.children.push(...items)},
-    addEventListener(){},querySelectorAll(){return []}};
+  return {tag,value:'',replaceChildren(){this.children=[]},children:[],style:{},dataset:{},append(...items){this.children.push(...items)},
+    addEventListener(){},querySelector(){return null},querySelectorAll(){return []}};
 }
 const nodes={};
 const document={addEventListener(){},querySelector:key=>nodes[key]??=element(key),createElement:element};
 const context=vm.createContext({document,ResizeObserver:class{observe(){}},
-  requestAnimationFrame:()=>1,fetch:async()=>({ok:true,text:async()=>'<section></section>'})});
+  requestAnimationFrame:()=>1,fetch:async()=>({ok:true,json:async()=>[{extension:'.py',id:'python',name:'Python'}],text:async()=>'<section></section>'})});
 vm.runInContext(fs.readFileSync('index.html','utf8').split('<script>')[1].split('</script>')[0],context);
 (async()=>{
   await vm.runInContext("load({name:'sample.py',size:1})",context);
