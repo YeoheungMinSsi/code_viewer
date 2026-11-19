@@ -1,5 +1,7 @@
 """Python 3.9+ local source viewer."""
 import json
+import os
+import threading
 import webbrowser
 from urllib.parse import unquote
 from analyzers import analyze, supported_languages
@@ -8,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+AUTOSAVE = Path(os.environ.get('CODE_VIEWER_AUTOSAVE', str(ROOT / '.autosave.json')))
+SAVE_LOCK = threading.Lock()
 LIMIT = 5 * 1024 * 1024
 
 
@@ -23,8 +27,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        if self.path == '/languages':
+        if self.path == '/autosave':
+            try:
+                self.reply(200, AUTOSAVE.read_text(encoding='utf-8') if AUTOSAVE.exists() else 'null', 'application/json')
+            except OSError:
+                self.reply(500, '자동 저장 파일을 읽을 수 없습니다.')
+        elif self.path == '/languages':
             self.reply(200, json.dumps(supported_languages()), 'application/json')
+        elif self.path == '/learning-example-java':
+            self.reply(200, (ROOT / 'LearningExample.java').read_text())
         elif self.path == '/learning-example':
             self.reply(200, (ROOT / 'learning_example.py').read_text())
         elif self.path == '/':
@@ -33,6 +44,24 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
+        if self.path == '/autosave':
+            if self.headers.get('Content-Type') != 'application/json' or self.headers.get('Origin') != 'http://' + self.headers.get('Host', ''):
+                return self.reply(403, '허용되지 않은 저장 요청입니다.')
+            try:
+                size = int(self.headers.get('Content-Length', '-1'))
+                if not 0 <= size <= 50 * 1024 * 1024:
+                    return self.reply(413, '자동 저장은 최대 50 MiB입니다.')
+                raw = self.rfile.read(size).decode('utf-8')
+                data = json.loads(raw)
+                if not isinstance(data, dict) or data.get('version') != 1 or not isinstance(data.get('files'), list):
+                    raise ValueError('올바른 작업 파일이 아닙니다.')
+                with SAVE_LOCK:
+                    temporary = AUTOSAVE.with_suffix('.tmp')
+                    temporary.write_text(raw, encoding='utf-8')
+                    temporary.replace(AUTOSAVE)
+            except (ValueError, OSError) as err:
+                return self.reply(400, f'자동 저장 실패: {err}')
+            return self.reply(200, '저장 완료')
         if self.path != '/outline' or self.headers.get('Content-Type') != 'application/octet-stream':
             return self.send_error(400)
         try:

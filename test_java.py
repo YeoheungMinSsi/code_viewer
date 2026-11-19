@@ -82,11 +82,24 @@ class JavaTests(unittest.TestCase):
         self.assertIn('실제 객체', call.attrib['title'])
 
     def test_double_suffix_and_shadowed_local(self):
-        root = self.tree('class A { String value; void f(int x){} void f(double x){} void f(String x){} void run(){ f(1d); { int value=1; f(value); } f(value); } }')
+        root = self.tree("""class A {
+ String value;
+ void f(int x){}
+ void f(double x){}
+ void f(String x){}
+ void run(){
+  f(1d);
+  { int value=1; f(value); }
+  f(value);
+ }
+}""")
         calls = root.findall('.//button')
         target = root.find('.//details[@data-line="' + calls[0].attrib['data-target'] + '"]')
         self.assertEqual(target.find('summary/b').text, 'f(double x)')
-        self.assertTrue(all(c.attrib['data-target'].startswith('?') for c in calls[1:]))
+        self.assertEqual(len(calls), 3)
+        for call in calls[1:]:
+            self.assertTrue(call.attrib['data-target'].startswith('?'))
+            self.assertIn('인자 타입', call.attrib['title'])
 
     def test_private_super_not_connected(self):
         root = self.tree('class Base { private void f(){} } class Child extends Base { void f(){ super.f(); } }')

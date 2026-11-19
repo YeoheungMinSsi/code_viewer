@@ -35,10 +35,11 @@ summary{user-select:none;cursor:grab}.var>summary:focus-visible{background:#ffcb
 .file[hidden]{display:none!important}
 #tree details>details,#tree details>button{margin-left:14px;width:calc(100% - 14px)}
 #tree details{border-left:1px solid #d9e2db;padding-left:5px}
-.call[data-target^="?"]{color:#c6c9c7;text-decoration-style:dotted}.entry>summary{background:#dcecff;border:2px solid #5085b8}#help{font-size:13px;white-space:pre-line}.inheritance{font-size:11px;color:#815318;max-width:100%;overflow-wrap:anywhere}</style><header><h1>코드 산책</h1><input type="file" multiple aria-label="코드 파일 추가"><label>폴더 추가 <input id="folder" type="file" webkitdirectory multiple></label><button id="lesson">학습 예제</button></header>
-<nav id="explorer"><input id="search" placeholder="파일·클래스·함수 검색" aria-label="이름 검색"><p id="help" role="status">실선: 소속·작성 순서 / 점선: 호출 관계<br>코드를 실행하지 않고 읽는 도구입니다.</p><button id="next-lesson" hidden>다음 단계</button><div id="tree"></div></nav><main aria-label="코드 캔버스"><aside><strong>코드 파일을 놓거나 왼쪽 목록에서 파일을 끌어놓으세요</strong>○ 클래스　 ▭ 함수　⬡ 변수　 ·　 최대 5 MiB</aside><article><svg id="edges" width="1" height="1" aria-hidden="true"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10" fill="#2685c5"/></marker></defs><path fill="none" stroke="#799481" stroke-width="2"/><g id="calls" fill="none" stroke="#2685c5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/></svg></article></main>
-<footer><span id="status" role="status">빈 곳을 드래그해 이동 · 휠로 확대 및 축소</span><div><button id="minus" aria-label="축소">−</button> <button id="reset" title="처음 위치와 배율로 복원">100%</button> <button id="plus" aria-label="확대">＋</button></div></footer>
-<div id="menu" hidden><button id="remove-file">파일을 화면에서 제거</button><button id="remove-folder">폴더 전체를 화면에서 제거</button></div><script>
+.call[data-target^="?"]{color:#c6c9c7;text-decoration-style:dotted}.entry>summary{background:#dcecff;border:2px solid #5085b8}#help{font-size:13px;white-space:pre-line}.inheritance{font-size:11px;color:#815318;max-width:100%;overflow-wrap:anywhere}article details{pointer-events:none}article summary,article pre,article .call{pointer-events:auto}.memo{position:absolute;left:940px;top:0;width:260px;background:#fff2b5;color:#24382b;padding:12px;border:1px solid #b9a35a;border-radius:8px;pointer-events:auto;z-index:3}.memo::before{content:'';position:absolute;right:100%;top:22px;width:18px;border-top:1px solid #b9a35a}.memo textarea{display:block;width:100%;box-sizing:border-box;min-height:120px;margin-top:10px;resize:vertical}.memo-close{border:0;border-radius:50%;background:#ef5955;width:16px;height:16px;padding:0;line-height:16px;color:transparent}.memo-close:hover,.memo-close:focus-visible{color:#631a18}.memo-marker{position:absolute;left:900px;top:0;pointer-events:auto}.memo[hidden]{display:none}
+</style><header><h1>코드 산책</h1><input type="file" multiple aria-label="코드 파일 추가"><label>폴더 추가 <input id="folder" type="file" webkitdirectory multiple></label><select id="lesson-language" aria-label="학습 예제 언어"><option value="python">Python</option><option value="java">Java</option></select><button id="lesson">학습 예제</button><button id="save-work">작업 저장</button><label>작업 불러오기<input id="restore-work" type="file" accept=".json"></label></header>
+<nav id="explorer"><input id="search" placeholder="파일·클래스·함수 검색" aria-label="이름 검색"><p id="help" role="status">실선: 소속·작성 순서 / 점선: 호출 관계<br>코드를 실행하지 않고 읽는 도구입니다.</p><button id="next-lesson" hidden>다음 단계</button><button id="find-entry">시작점 찾기</button><div id="relations"></div><div id="tree"></div></nav><main aria-label="코드 캔버스"><aside><strong>코드 파일을 놓거나 왼쪽 목록에서 파일을 끌어놓으세요</strong>○ 클래스　 ▭ 함수　⬡ 변수　 ·　 최대 5 MiB</aside><article><svg id="edges" width="1" height="1" aria-hidden="true"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10" fill="#2685c5"/></marker></defs><path fill="none" stroke="#799481" stroke-width="2"/><g id="calls" fill="none" stroke="#2685c5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/></svg></article></main>
+<footer><span id="autosave-status" role="status">자동 저장 준비 중</span><span id="status" role="status">빈 곳을 드래그해 이동 · 휠로 확대 및 축소</span><div><button id="minus" aria-label="축소">−</button> <button id="reset" title="처음 위치와 배율로 복원">100%</button> <button id="plus" aria-label="확대">＋</button></div></footer>
+<div id="menu" hidden><button id="add-memo" hidden>메모 추가·열기</button><button id="remove-file">파일을 화면에서 제거</button><button id="remove-folder">폴더 전체를 화면에서 제거</button></div><script>
 const input=document.querySelector('input'), output=document.querySelector('article'), statusEl=document.querySelector('#status');
 const canvas=document.querySelector('main'), hint=document.querySelector('aside'), reset=document.querySelector('#reset');
 let x,y,scale,drag=null;
@@ -163,14 +164,19 @@ function redraw(){
  const edge=document.createElementNS('http://www.w3.org/2000/svg','path');
  if(call.classList.contains('inheritance'))edge.setAttribute('stroke','#a26d2b');
  edge.setAttribute('d','M'+ax+' '+ay+route.map(p=>' L'+p.x+' '+p.y).join(' ')+' L'+bx+' '+by);
- group.append(edge);source.classList.add('selected');target.classList.add('selected');
+ const kind=call.classList.contains('inheritance')?'상속':target.classList.contains('cls')?'객체 생성':'호출';
+ const label=document.createElementNS('http://www.w3.org/2000/svg','text');
+ label.textContent=kind;label.setAttribute('x',ax+14);label.setAttribute('y',ay-8);label.setAttribute('fill','#315e85');label.setAttribute('font-size','12');
+ edge.style.pointerEvents='stroke';edge.style.cursor='pointer';
+ edge.onclick=()=>{help.textContent=kind+': '+source.dataset.name+' → '+target.dataset.name+'\n선언된 코드의 관계입니다. 실제 실행 순서를 기록한 것은 아닙니다.';call.focus();};
+ group.append(edge,label);source.classList.add('selected');target.classList.add('selected');
  }
 
  });
 }
 const observer=new ResizeObserver(redraw);
 canvas.onpointerdown=e=>{
- if(e.button!==0||e.target.closest('pre,.call')||drag)return;
+ if(e.button!==0||e.target.closest('pre,.call,.memo,.memo-marker')||drag)return;
  const handle=e.target.closest('summary');
  const owner=handle?.parentElement;
  const node=owner?.matches('.cls')?owner.closest('.file'):owner;
@@ -190,6 +196,7 @@ canvas.onpointermove=e=>{
 };
 canvas.onlostpointercapture=()=>{skipClick=!!drag?.moved;drag=null};
 function collapseChildren(node){
+ node.querySelectorAll('.memo').forEach(m=>m.hidden=true);
  for(const [call,target] of activeCalls){
  if(node.contains(call)||node.contains(target)){
  activeCalls.delete(call);call.setAttribute('aria-pressed','false');
@@ -236,6 +243,7 @@ output.addEventListener('click',e=>{
  redraw();
 });
 home();
+const sources=new WeakMap();
 async function load(file){
  const panel=document.createElement('details'), title=document.createElement('summary'), content=document.createElement('div');
  panel.className='file';panel.hidden=!!file.webkitRelativePath;panel.dataset.path=file.webkitRelativePath||file.name;
@@ -258,6 +266,7 @@ async function load(file){
  const body=await res.text();
  if(!res.ok)throw Error(body);
  content.innerHTML=body;
+ sources.set(panel,await file.text());
  content.querySelectorAll('section section').forEach(section=>{
  if(section.parentElement.matches('section'))section.replaceWith(...section.childNodes);
  });
@@ -308,6 +317,7 @@ let menuPrefix=null;
 const menu=document.querySelector('#menu');let menuFile=null;
 canvas.addEventListener('contextmenu',e=>{
  const file=e.target.closest('.file');if(!file)return;
+ memoOwner=e.target.closest('pre')?.closest('details')||null;document.querySelector('#add-memo').hidden=!memoOwner;
  e.preventDefault();menuPrefix=null;menuFile=file;menu.hidden=false;
  document.querySelector('#remove-folder').hidden=!file.dataset.folder;
  menu.style.left=Math.min(e.clientX,window.innerWidth-260)+'px';
@@ -333,14 +343,21 @@ canvas.addEventListener('click',e=>{
 let lessonFile=null,lessonStep=0;
 const steps=[['.entry','1. 시작점에서 order = Order()를 읽어보세요. Order 설계도로 객체를 만듭니다.'],['.cls','2. Order는 설계도, order는 만든 객체입니다. __init__은 생성 시 데이터를 준비합니다.'],['[data-name="receipt"]','3. order.receipt()는 객체의 receipt 메서드를 호출합니다.'],['[data-name="total"]','4. receipt는 total을 호출해 가격을 얻습니다.'],['[data-name="format_total"]','5. format_total이 가격을 문장으로 바꿉니다. 점선은 호출 관계이며 실제 실행 기록은 아닙니다.']];
 document.querySelector('#lesson').onclick=async()=>{
- const response=await fetch('/learning-example');if(!response.ok)return;
- await load(new File([await response.text()],'learning_example.py'));
+ const java=document.querySelector('#lesson-language').value==='java';
+ const response=await fetch(java?'/learning-example-java':'/learning-example');if(!response.ok){help.textContent='학습 예제를 불러오지 못했습니다.';return}
+ await load(new File([await response.text()],java?'LearningExample.java':'learning_example.py'));
  lessonFile=output.lastElementChild;lessonStep=0;document.querySelector('#next-lesson').hidden=false;
  showStep();
 };
 function showStep(){
  if(!lessonFile?.isConnected)return;
- const [selector,message]=steps[lessonStep],node=lessonFile.querySelector(selector);
+ let [selector,message]=steps[lessonStep];
+ if(lessonFile.dataset.language==='java'){
+ selector=['.entry','.cls','[data-name^="receipt("]','[data-name^="total("]','[data-name^="format_total("]'][lessonStep];
+ if(lessonStep===0)message='1. main에서 시작합니다. new Order()로 객체를 만듭니다.';
+ if(lessonStep===1)message='2. Order는 설계도, order는 만든 객체입니다. 생성자가 객체를 준비합니다.';
+ }
+ const node=lessonFile.querySelector(selector);if(!node)return;
  node.open=true;focusNode(node);help.textContent=message;
  document.querySelector('#next-lesson').textContent=lessonStep===steps.length-1?'처음부터':'다음 단계';
 }
@@ -365,4 +382,82 @@ document.ondrop=e=>{
  Array.from(e.dataTransfer.files).filter(file=>!directories.some(entry=>entry.name===file.name)).forEach(load);
 };
 output.addEventListener('toggle',e=>{if(e.target.matches('details:not([open])'))collapseChildren(e.target);redraw()},true);
+
+const relations=document.querySelector('#relations');
+document.querySelector('#find-entry').onclick=()=>{
+ relations.replaceChildren();
+ const entries=[...output.querySelectorAll('.entry')];
+ help.textContent=entries.length?'시작점을 선택해 코드를 살펴보세요.':'시작점을 찾지 못했습니다. 탐색 목록에서 클래스나 함수를 선택하세요.';
+ for(const node of entries){const b=document.createElement('button');b.textContent=node.closest('.file').dataset.path+' · '+node.dataset.name;b.onclick=()=>{node.open=true;focusNode(node)};relations.append(b)}
+};
+canvas.addEventListener('click',e=>{
+ const node=e.target.closest('summary')?.parentElement;if(!node?.matches('.fn,.entry'))return;
+ relations.replaceChildren();
+ for(const [title,calls] of [['이 함수가 호출하는 곳',[...node.querySelectorAll('.call')]],['이 함수를 호출하는 곳',[...output.querySelectorAll('.call')].filter(c=>c.closest('.file')===node.closest('.file')&&c.dataset.target===node.dataset.line)]]){
+ const heading=document.createElement('p');heading.textContent=title;relations.append(heading);
+ if(!calls.length){const empty=document.createElement('small');empty.textContent='확인된 호출이 없습니다.';relations.append(empty)}
+ for(const call of calls){const b=document.createElement('button');b.textContent=call.textContent;b.title=call.title;b.onclick=()=>{for(let n=call.parentElement;n&&n!==output;n=n.parentElement)if(n.matches('details'))n.open=true;call.closest('.file').hidden=false;call.click()};relations.append(b)}
+ }
+});
+function workspaceData(){
+ const files=[...output.querySelectorAll('.file')].filter(f=>sources.has(f));
+ const data={version:1,files:files.map(f=>({path:f.dataset.path,folder:!!f.dataset.folder,source:sources.get(f),hidden:f.hidden,nodes:[f,...f.querySelectorAll('details')].map(n=>({memo:n.querySelector(':scope > .memo textarea')?.value,open:n.open,x:n.dataset.x||'0',y:n.dataset.y||'0'})),calls:[...f.querySelectorAll('.call')].map((c,i)=>activeCalls.has(c)?i:-1).filter(i=>i>=0)}))};
+ return data;
+}
+document.querySelector('#save-work').onclick=()=>{
+ const data=workspaceData();
+ const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='code-walk.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);help.textContent='작업을 저장했습니다. 저장 파일에는 소스 코드가 포함됩니다.';
+};
+document.querySelector('#restore-work').onchange=async e=>{
+ try{
+ const file=e.target.files[0];if(!file)return;if(file.size>50*1024*1024)throw Error('작업 파일은 최대 50 MiB입니다.');
+ const data=JSON.parse(await file.text());
+ await restoreWorkspace(data);
+ redraw();help.textContent='저장한 작업을 추가했습니다.';
+ }catch(err){help.textContent='작업을 불러올 수 없습니다: '+err.message}finally{e.target.value=''}
+};
+
+async function restoreWorkspace(data){
+ if(data.version!==1||!Array.isArray(data.files)||data.files.some(f=>typeof f.path!=='string'||typeof f.source!=='string'||new Blob([f.source]).size>5*1024*1024||!Array.isArray(f.nodes)||f.nodes.some(n=>!n||!Number.isFinite(Number(n.x))||!Number.isFinite(Number(n.y)))||!Array.isArray(f.calls)))throw Error('올바른 작업 파일이 아닙니다.');
+ const restored=[];
+ for(const saved of data.files){const source=new File([saved.source],saved.path.split('/').pop());if(saved.folder)Object.defineProperty(source,'webkitRelativePath',{value:saved.path});await load(source);const panel=output.lastElementChild;restored.push([panel,saved]);panel.hidden=!!saved.hidden;[panel,...panel.querySelectorAll('details')].forEach((n,i)=>{const state=saved.nodes[i];if(state){if(typeof state.memo==='string')makeMemo(n,state.memo,false);n.open=!!state.open;n.dataset.x=String(Number(state.x));n.dataset.y=String(Number(state.y));n.style.transform='translate('+n.dataset.x+'px,'+n.dataset.y+'px)'}})}
+ await new Promise(resolve=>setTimeout(resolve,0));
+ for(const [panel,saved] of restored){const calls=panel.querySelectorAll('.call');for(const i of saved.calls)if(Number.isInteger(i)&&calls[i])calls[i].click()}
+ redraw();
+}
+let memoOwner=null;
+function makeMemo(node,text='',opened=true){
+ let card=node.querySelector(':scope > .memo');
+ if(card){card.hidden=!opened;return}
+ const marker=document.createElement('button');marker.className='memo-marker';marker.textContent='📝';marker.setAttribute('aria-label','메모 열기');marker.title='메모 열기';
+ card=document.createElement('div');card.className='memo';card.hidden=!opened;
+ const close=document.createElement('button');close.className='memo-close';close.textContent='×';close.title='메모 접기';close.setAttribute('aria-label','메모 접기');
+ const label=document.createElement('span');label.textContent=' 메모';
+ const area=document.createElement('textarea');area.value=text;area.setAttribute('aria-label','메모 내용');area.placeholder='이 코드에 대해 이해한 내용을 적어보세요';
+ const remove=document.createElement('button');remove.textContent='메모 삭제';
+ close.onclick=()=>{card.hidden=true;marker.focus()};marker.onclick=()=>{card.hidden=false;area.focus()};remove.onclick=()=>{card.remove();marker.remove()};
+ card.append(close,label,area,remove);node.append(marker,card);if(opened)area.focus();
+}
+document.querySelector('#add-memo').onclick=()=>{if(memoOwner)makeMemo(memoOwner);menu.hidden=true};
+
+let autoReady=false,autoBusy=false,lastAuto='';
+const autoStatus=document.querySelector('#autosave-status');
+async function saveAutomatically(){
+ if(!autoReady||autoBusy||[...output.querySelectorAll('.file>div')].some(n=>n.textContent==='분석 중…'))return;
+ const raw=JSON.stringify(workspaceData());if(raw===lastAuto)return;
+ autoBusy=true;autoStatus.textContent='자동 저장 중…';
+ try{const response=await fetch('/autosave',{method:'POST',headers:{'Content-Type':'application/json'},body:raw});if(!response.ok)throw Error(await response.text());lastAuto=raw;autoStatus.textContent='자동 저장 완료'}
+ catch(err){autoStatus.textContent='자동 저장 실패 · 작업 저장을 이용하세요';autoStatus.title=err.message}
+ finally{autoBusy=false}
+}
+async function startAutosave(){
+ try{const response=await fetch('/autosave');if(!response.ok)throw Error();const data=await response.json();if(data)await restoreWorkspace(data);lastAuto=JSON.stringify(workspaceData());autoReady=true;autoStatus.textContent=data?'자동 저장 작업 복원 완료':'자동 저장 켜짐'}
+ catch(err){autoStatus.textContent='자동 복원 실패 · 기존 저장 보호를 위해 자동 저장 중지'}
+}
+if(typeof window!=='undefined'){
+ document.querySelector('header').inert=true;
+ startAutosave().finally(()=>document.querySelector('header').inert=false);
+ setInterval(saveAutomatically,1000);
+ window.addEventListener('beforeunload',e=>{if(autoReady&&(autoBusy||JSON.stringify(workspaceData())!==lastAuto)){saveAutomatically();e.preventDefault();e.returnValue=''}});
+}
 </script></html>

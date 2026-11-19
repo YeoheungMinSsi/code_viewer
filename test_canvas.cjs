@@ -11,7 +11,7 @@ const context=vm.createContext({document,ResizeObserver:class{observe(){}},
   requestAnimationFrame:()=>1,fetch:async()=>({ok:true,json:async()=>[{extension:'.py',id:'python',name:'Python'}],text:async()=>'<section></section>'})});
 vm.runInContext(fs.readFileSync('index.html','utf8').split('<script>')[1].split('</script>')[0],context);
 (async()=>{
-  await vm.runInContext("load({name:'sample.py',size:1})",context);
+  await vm.runInContext("load({name:'sample.py',size:1,text:async()=>''})",context);
   const file=nodes.article.children[0];
   assert.equal(file.tag,'details');
   assert.equal(file.children[0].tag,'summary');

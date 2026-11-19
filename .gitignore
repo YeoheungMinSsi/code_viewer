@@ -29,3 +29,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# 자동 저장된 소스와 메모
+.autosave.json
+.autosave.tmp
