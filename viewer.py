@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+EXAMPLES = ROOT / 'examples'
 AUTOSAVE = Path(os.environ.get('CODE_VIEWER_AUTOSAVE', str(ROOT / '.autosave.json')))
 SAVE_LOCK = threading.Lock()
 LIMIT = 5 * 1024 * 1024
@@ -34,12 +35,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(500, '자동 저장 파일을 읽을 수 없습니다.')
         elif self.path == '/languages':
             self.reply(200, json.dumps(supported_languages()), 'application/json')
+        elif self.path == '/static/app.css':
+            self.reply(200, (ROOT / 'static' / 'app.css').read_text(encoding='utf-8'), 'text/css')
+        elif self.path == '/static/app.js':
+            self.reply(200, (ROOT / 'static' / 'app.js').read_text(encoding='utf-8'), 'application/javascript')
         elif self.path == '/learning-example-java':
-            self.reply(200, (ROOT / 'LearningExample.java').read_text())
+            self.reply(200, (EXAMPLES / 'LearningExample.java').read_text(encoding='utf-8'))
+        elif self.path == '/learning-example-oop':
+            self.reply(200, (EXAMPLES / 'inheritance_example.py').read_text(encoding='utf-8'))
         elif self.path == '/learning-example':
-            self.reply(200, (ROOT / 'learning_example.py').read_text())
+            self.reply(200, (EXAMPLES / 'learning_example.py').read_text(encoding='utf-8'))
         elif self.path == '/':
-            self.reply(200, (ROOT / 'index.html').read_text(), 'text/html')
+            self.reply(200, (ROOT / 'index.html').read_text(encoding='utf-8'), 'text/html')
         else:
             self.send_error(404)
 

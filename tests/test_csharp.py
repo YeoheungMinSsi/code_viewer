@@ -5,7 +5,7 @@ from analyzers import analyze
 
 class CSharpTests(unittest.TestCase):
     def test_structure_and_links(self):
-        root=fromstring(analyze(Path('CSharpExample.cs').read_bytes(),'example.cs'))
+        root=fromstring(analyze(Path('examples/CSharpExample.cs').read_bytes(),'example.cs'))
         self.assertEqual(len(root.findall('.//details[@class="cls"]')),3)
         self.assertEqual(len(root.findall('.//details[@class="fn entry"]')),1)
         ids={n.attrib['data-line'] for n in root.findall('.//details')}

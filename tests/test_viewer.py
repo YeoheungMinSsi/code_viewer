@@ -5,7 +5,7 @@ from viewer import ROOT, outline
 class ViewerTest(unittest.TestCase):
     def test_example_structure(self):
         from xml.etree.ElementTree import fromstring
-        root = fromstring(outline((ROOT / 'example.py').read_bytes()))
+        root = fromstring(outline((ROOT / 'examples' / 'example.py').read_bytes()))
         self.assertEqual([n.text for n in root.findall('details/summary/b')], ['Order', 'show(order)', 'Cart'])
         methods = root.findall('details/section/details/summary/b')
         self.assertEqual([m.text for m in methods], ['total(self)', 'receipt(self)', 'refresh(self)'])

@@ -11,7 +11,7 @@ class JavaTests(unittest.TestCase):
         return fromstring(analyze(source.encode(), 'Example.java'))
 
     def test_example(self):
-        root = self.tree(Path('OrderExample.java').read_text())
+        root = self.tree(Path('examples/OrderExample.java').read_text())
         self.assertEqual([n.text for n in root.findall('details[@class="cls"]/summary/b')], ['Order', 'OrderExample'])
         self.assertEqual([n.text for n in root.findall('.//details[@class="fn"]/summary/small')], ['생성자', '메서드', '메서드'])
         self.assertEqual(len(root.findall('.//details[@class="fn entry"]')), 1)
@@ -43,7 +43,7 @@ class JavaTests(unittest.TestCase):
                 self.tree(source)
 
     def test_calls_inheritance_overloads_and_override(self):
-        root = self.tree(Path('JavaCallsExample.java').read_text())
+        root = self.tree(Path('examples/JavaCallsExample.java').read_text())
         targets = {node.attrib['data-line']: node for node in root.findall('.//details')}
         labels = root.findall('.//button')
         self.assertEqual([targets[b.attrib['data-target']].find('summary/b').text for b in labels if b.text == 'label'], ['label(int count)', 'label(String text)'])

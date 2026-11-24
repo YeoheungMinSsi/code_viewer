@@ -9,7 +9,8 @@ const nodes={};
 const document={addEventListener(){},querySelector:key=>nodes[key]??=element(key),createElement:element};
 const context=vm.createContext({document,ResizeObserver:class{observe(){}},
   requestAnimationFrame:()=>1,fetch:async()=>({ok:true,json:async()=>[{extension:'.py',id:'python',name:'Python'}],text:async()=>'<section></section>'})});
-vm.runInContext(fs.readFileSync('index.html','utf8').split('<script>')[1].split('</script>')[0],context);
+const path = require('node:path');
+vm.runInContext(fs.readFileSync(path.resolve(__dirname,'../static/app.js'),'utf8'),context);
 (async()=>{
   await vm.runInContext("load({name:'sample.py',size:1,text:async()=>''})",context);
   const file=nodes.article.children[0];
