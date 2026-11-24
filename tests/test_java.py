@@ -11,7 +11,7 @@ class JavaTests(unittest.TestCase):
         return fromstring(analyze(source.encode(), 'Example.java'))
 
     def test_example(self):
-        root = self.tree(Path('examples/OrderExample.java').read_text())
+        root = self.tree(Path('examples/OrderExample.java').read_text(encoding='utf-8'))
         self.assertEqual([n.text for n in root.findall('details[@class="cls"]/summary/b')], ['Order', 'OrderExample'])
         self.assertEqual([n.text for n in root.findall('.//details[@class="fn"]/summary/small')], ['생성자', '메서드', '메서드'])
         self.assertEqual(len(root.findall('.//details[@class="fn entry"]')), 1)
@@ -38,12 +38,12 @@ class JavaTests(unittest.TestCase):
         self.assertEqual(len(root.findall('.//details[@class="cls"]')), 2)
 
     def test_invalid_and_unsupported(self):
-        for source in ['class {', 'record Point(int x) {}', 'interface A {}']:
+        for source in ['class {', 'record Point(int x) {}']:
             with self.subTest(source=source), self.assertRaises(ValueError):
                 self.tree(source)
 
     def test_calls_inheritance_overloads_and_override(self):
-        root = self.tree(Path('examples/JavaCallsExample.java').read_text())
+        root = self.tree(Path('examples/JavaCallsExample.java').read_text(encoding='utf-8'))
         targets = {node.attrib['data-line']: node for node in root.findall('.//details')}
         labels = root.findall('.//button')
         self.assertEqual([targets[b.attrib['data-target']].find('summary/b').text for b in labels if b.text == 'label'], ['label(int count)', 'label(String text)'])
@@ -106,3 +106,89 @@ class JavaTests(unittest.TestCase):
         call = next(n for n in root.findall('.//button') if n.text == 'f')
         self.assertTrue(call.attrib['data-target'].startswith('?'))
         self.assertNotIn('오버라이드', ''.join(root.itertext()))
+
+    def test_interface_enum_and_implements(self):
+        root = self.tree("""
+interface Priced {
+    int price();
+}
+enum Status implements Priced {
+    PAID, CANCELLED;
+    public int price() { return 1000; }
+}
+class Order implements Priced {
+    public int price() { return 12000; }
+    int show(Priced item) { return item.price(); }
+}
+""")
+        kinds = [n.text for n in root.findall('details[@class="cls"]/summary/small')]
+        self.assertEqual(kinds, ['인터페이스', '열거형', '클래스'])
+        consts = [n.text for n in root.findall('.//details[@class="var"]/summary/b')]
+        self.assertEqual(consts, ['PAID', 'CANCELLED'])
+        impl_buttons = [b for b in root.findall('.//button[@class="call inheritance"]') if b.text == 'implements Priced']
+        self.assertEqual(len(impl_buttons), 2)
+        priced_id = root.find('details[@data-name="Priced"]').attrib['data-line']
+        self.assertTrue(all(b.attrib['data-target'] == priced_id for b in impl_buttons))
+        self.assertIn('오버라이드', ''.join(root.itertext()))
+        call = next(b for b in root.findall('.//button') if b.text == 'price')
+        self.assertFalse(call.attrib['data-target'].startswith('?'))
+
+    def test_cross_file_java_imports(self):
+        root = self.tree("""
+import shop.Discount;
+import shop.BaseOrder;
+class Order extends BaseOrder {
+    int total() {
+        Discount d = new Discount();
+        return d.apply(super.base());
+    }
+}
+""")
+        buttons = {b.text: b.attrib['data-target'] for b in root.findall('.//button')}
+        self.assertEqual(buttons['extends BaseOrder'], 'shop.BaseOrder|BaseOrder')
+        self.assertEqual(buttons['Discount'], 'shop.Discount|Discount')
+        self.assertEqual(buttons['apply'], 'shop.Discount|Discount.apply')
+        self.assertEqual(buttons['base'], 'shop.BaseOrder|BaseOrder.base()')
+
+    def test_annotation_varargs_and_generics(self):
+        root = self.tree("""
+@interface Tag {
+    String value();
+}
+class Calc {
+    int sum(int a) { return a; }
+    int sum(int... nums) { return 0; }
+    <T extends Number> T id(T x) { return x; }
+    void run(Integer n) {
+        sum(1);
+        sum(1, 2, 3);
+        id(n);
+    }
+}
+""")
+        self.assertEqual(root.find('details[@data-name="Tag"]/summary/small').text, '애노테이션')
+        self.assertEqual(root.find('details[@data-name="Tag"]//details[@class="fn"]/summary/small').text, '요소')
+        targets = {n.attrib['data-line']: n.find('summary/b').text for n in root.findall('.//details')}
+        sums = [targets[b.attrib['data-target']] for b in root.findall('.//button') if b.text == 'sum']
+        self.assertEqual(sums, ['sum(int a)', 'sum(int... nums)'])
+        id_call = next(b for b in root.findall('.//button') if b.text == 'id')
+        self.assertEqual(targets[id_call.attrib['data-target']], 'id(T x)')
+
+    def test_wildcard_and_same_package_cross_file_overloads(self):
+        root = self.tree("""
+package shop;
+import util.*;
+class Checkout {
+    void run(Pricing p, Helper h) {
+        p.fee(100);
+        p.fee("VIP");
+        h.log();
+    }
+}
+""")
+        calls = [(b.text, b.attrib['data-target']) for b in root.findall('.//button')]
+        self.assertEqual(calls, [
+            ('fee', 'shop.Pricing,util.Pricing|Pricing.fee(int)'),
+            ('fee', 'shop.Pricing,util.Pricing|Pricing.fee(String)'),
+            ('log', 'shop.Helper,util.Helper|Helper.log()'),
+        ])

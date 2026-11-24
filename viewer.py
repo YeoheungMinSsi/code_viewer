@@ -39,6 +39,8 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, (ROOT / 'static' / 'app.css').read_text(encoding='utf-8'), 'text/css')
         elif self.path == '/static/app.js':
             self.reply(200, (ROOT / 'static' / 'app.js').read_text(encoding='utf-8'), 'application/javascript')
+        elif self.path == '/learning-example-csharp':
+            self.reply(200, (EXAMPLES / 'LearningExample.cs').read_text(encoding='utf-8'))
         elif self.path == '/learning-example-java':
             self.reply(200, (EXAMPLES / 'LearningExample.java').read_text(encoding='utf-8'))
         elif self.path == '/learning-example-oop':

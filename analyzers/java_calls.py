@@ -23,22 +23,67 @@ def signature(method):
 
 
 def analyze_calls(unit, tokens):
-    classes = [node for _, node in unit.filter(java.tree.ClassDeclaration)]
-    counts = Counter(c.name for c in classes)
-    by_name = {c.name: c for c in classes if counts[c.name] == 1}
+    TYPE_NODES = (java.tree.ClassDeclaration, java.tree.InterfaceDeclaration, java.tree.EnumDeclaration)
+    types = [node for _, node in unit.filter(java.tree.TypeDeclaration) if isinstance(node, TYPE_NODES)]
+    classes = [node for node in types if isinstance(node, java.tree.ClassDeclaration)]
+    counts = Counter(c.name for c in types)
+    by_name = {c.name: c for c in types if counts[c.name] == 1}
+    imported = {}
+    wildcards = []
+    pkg = unit.package.name if unit.package else ''
+    for imp in (unit.imports or []):
+        if imp.static or not imp.path:
+            continue
+        if imp.wildcard:
+            wildcards.append(imp.path)
+        else:
+            imported[imp.path.split('.')[-1]] = imp.path
     links = {}
     inheritance = {}
     overrides = {}
     primitive = {'byte': ['short', 'int', 'long', 'float', 'double'], 'short': ['int', 'long', 'float', 'double'],
                  'char': ['int', 'long', 'float', 'double'], 'int': ['long', 'float', 'double'],
                  'long': ['float', 'double'], 'float': ['double'], 'double': [], 'boolean': []}
+    BUILTIN = set(primitive) | {'Object', 'String', 'System', 'Math', 'Integer', 'Long', 'Double', 'Boolean', 'Float', 'Short', 'Byte', 'Character', 'Exception', 'RuntimeException', 'Throwable', 'Error', 'null'}
+
+    def external_hint(tname):
+        """Return module hint(s) for a type outside this file, or None if no import/package context exists."""
+        if not tname or tname in by_name or tname in BUILTIN or tname.endswith('[]'):
+            return None
+        if tname in imported:
+            return imported[tname]
+        scopes = ([pkg] if pkg else []) + wildcards
+        return ','.join(f'{s}.{tname}' for s in scopes) if scopes else None
+
+    def cross_method_target(hint, tname, method_name, arg_types):
+        sig = method_name if any(a is None for a in arg_types) else f'{method_name}({",".join(arg_types)})'
+        return f'{hint}|{tname}.{sig}'
+
+    def type_parents(node):
+        """Return list of (keyword, parent_name) for extends/implements on a class, interface, or enum."""
+        result = []
+        ext = getattr(node, 'extends', None)
+        if isinstance(ext, list):
+            result.extend(('extends', type_name(e)) for e in ext if e)
+        elif ext:
+            result.append(('extends', type_name(ext)))
+        for impl in (getattr(node, 'implements', None) or []):
+            result.append(('implements', type_name(impl)))
+        return result
 
     def chain(cls):
         seen = set()
-        while cls and cls.name not in seen:
-            seen.add(cls.name)
-            yield cls
-            cls = by_name.get(type_name(cls.extends)) if cls.extends else None
+        queue = [cls] if cls else []
+        while queue:
+            cur = queue.pop(0)
+            if cur is None or cur.name in seen:
+                continue
+            seen.add(cur.name)
+            yield cur
+            for _, pname in type_parents(cur):
+                parent_node = by_name.get(pname)
+                if parent_node and parent_node.name not in seen:
+                    queue.append(parent_node)
 
     def conversion(actual, expected):
         if actual is None:
@@ -51,20 +96,74 @@ def analyze_calls(unit, tokens):
             return expected not in primitive
         if expected == 'Object':
             return True
+        if expected == 'Number' and actual in {'Integer', 'Long', 'Double', 'Float', 'Short', 'Byte'}:
+            return True
         return any(c.name == expected for c in chain(by_name.get(actual)))
+
+    def match_method(m, arguments, allow_varargs):
+        """Return list of resolved parameter types if `m` matches `arguments`, else None."""
+        params = m.parameters
+        tp_bounds = {tp.name: [type_name(e) for e in (tp.extends or [])] for tp in (m.type_parameters or [])}
+        is_varargs = bool(params and params[-1].varargs)
+        if is_varargs:
+            if not allow_varargs:
+                return None
+            fixed = params[:-1]
+            if len(arguments) < len(fixed):
+                return None
+            var_elem = type_name(params[-1].type)
+            if len(arguments) == len(params) and arguments[-1] == var_elem + '[]':
+                expected = [type_name(p.type) for p in fixed] + [var_elem + '[]']
+            else:
+                expected = [type_name(p.type) for p in fixed] + [var_elem] * (len(arguments) - len(fixed))
+        else:
+            if len(params) != len(arguments):
+                return None
+            expected = [type_name(p.type) for p in params]
+        bindings = {}
+        resolved = []
+        for actual, exp in zip(arguments, expected):
+            if exp in tp_bounds:
+                if actual in primitive:
+                    return None
+                if actual != 'null':
+                    if tp_bounds[exp] and not all(conversion(actual, b) for b in tp_bounds[exp]):
+                        return None
+                    prev = bindings.get(exp)
+                    if prev is None:
+                        bindings[exp] = actual
+                    elif prev != actual:
+                        if conversion(actual, prev):
+                            pass
+                        elif conversion(prev, actual):
+                            bindings[exp] = actual
+                        else:
+                            return None
+                resolved.append(bindings.get(exp, 'Object'))
+            else:
+                if not conversion(actual, exp):
+                    return None
+                resolved.append(exp)
+        return resolved
 
     def choose(candidates, arguments):
         names = ', '.join(signature(m) for m in candidates) or '없음'
         if any(a is None for a in arguments):
             return None, '인자 타입을 확정할 수 없습니다. 후보: ' + names
-        # Boxing, varargs and generic inference need compiler-level type information.
-        if any(m.type_parameters or any(p.varargs or getattr(p.type, 'arguments', None) for p in m.parameters) for m in candidates):
-            return None, '제네릭·가변 인자 해석은 미지원입니다. 후보: ' + names
-        matching = [m for m in candidates if len(m.parameters) == len(arguments) and all(conversion(a, type_name(p.type)) for a, p in zip(arguments, m.parameters))]
-        best = [m for m in matching if all(m is other or all(conversion(type_name(p.type), type_name(q.type)) for p, q in zip(m.parameters, other.parameters)) for other in matching)]
-        if len(best) != 1:
+        # JLS §15.12.2: fixed-arity matches take priority over varargs matches.
+        for allow_varargs in (False, True):
+            matched = []
+            for m in candidates:
+                resolved = match_method(m, arguments, allow_varargs)
+                if resolved is not None:
+                    matched.append((m, resolved))
+            if not matched:
+                continue
+            best = [m for m, r in matched if all(m is om or all(conversion(a, b) for a, b in zip(r, or_)) for om, or_ in matched)]
+            if len(best) == 1:
+                return best[0], '정적 호출 대상: ' + signature(best[0]) + ' · 실제 객체의 오버라이드에 따라 실행 대상은 달라질 수 있습니다.'
             return None, '오버로딩 대상을 확정할 수 없습니다. 후보: ' + names
-        return best[0], '정적 호출 대상: ' + signature(best[0]) + ' · 실제 객체의 오버라이드에 따라 실행 대상은 달라질 수 있습니다.'
+        return None, '오버로딩 대상을 확정할 수 없습니다. 후보: ' + names
 
     def methods(cls, name):
         result, seen = [], set()
@@ -79,16 +178,33 @@ def analyze_calls(unit, tokens):
         return result
 
     def store(token, target, reason):
-        links[(token.position.line, token.position.column - 1)] = (len(token.value), node_id(target) if target else '?' + reason, reason)
+        if isinstance(target, str):
+            links[(token.position.line, token.position.column - 1)] = (len(token.value), target, reason)
+        else:
+            links[(token.position.line, token.position.column - 1)] = (len(token.value), node_id(target) if target else '?' + reason, reason)
 
-    for cls in classes:
-        parent = by_name.get(type_name(cls.extends)) if cls.extends else None
-        if cls.extends:
-            inheritance[id(cls)] = (node_id(parent) if parent else '?상위 클래스가 이 파일에 없거나 이름이 중복됩니다.', type_name(cls.extends))
+    def resolve_parent_target(pname):
+        parent = by_name.get(pname)
+        if parent:
+            return node_id(parent)
+        hint = external_hint(pname)
+        if hint:
+            return f'{hint}|{pname}'
+        return '?상위 타입이 이 파일에 없거나 이름이 중복됩니다.'
+
+    for cls in types:
+        parent_edges = [(kw, resolve_parent_target(pname), pname) for kw, pname in type_parents(cls)]
+        if parent_edges:
+            inheritance[id(cls)] = parent_edges
+        direct_parents = [by_name[pname] for _, pname in type_parents(cls) if pname in by_name]
+        parent = by_name.get(type_name(cls.extends)) if isinstance(cls, java.tree.ClassDeclaration) and cls.extends else None
+        ext_parent_name = type_name(cls.extends) if isinstance(cls, java.tree.ClassDeclaration) and cls.extends and not parent else None
+        imported_parent = ext_parent_name if external_hint(ext_parent_name) else None
         for method in cls.methods:
-            if parent and not {'static', 'private'} & method.modifiers and any(signature(m) == signature(method) and not {'static', 'private'} & m.modifiers for m in methods(parent, method.name)):
+            if direct_parents and not {'static', 'private'} & method.modifiers and any(signature(m) == signature(method) and not {'static', 'private'} & m.modifiers for p in direct_parents for m in methods(p, method.name)):
                 overrides[id(method)] = '오버라이드'
-        for method in cls.methods + cls.constructors:
+        all_members = list(cls.methods) + list(getattr(cls, 'constructors', []) or [])
+        for method in all_members:
             if method.body is None:
                 continue
             environment = {}
@@ -159,12 +275,18 @@ def analyze_calls(unit, tokens):
                 target, reason = None, '외부·익명 클래스 또는 지원하지 않는 생성자/상위 호출입니다.'
                 nested = any(isinstance(n, (java.tree.ClassCreator, java.tree.ClassDeclaration, java.tree.LambdaExpression)) for n in special_path if not isinstance(n, list))
                 if receiver and not nested and not (constructor and invocation.body):
-                    candidates = receiver.constructors if constructor else methods(receiver, name)
+                    candidates = (getattr(receiver, 'constructors', []) or []) if constructor else methods(receiver, name)
                     candidates = [m for m in candidates if 'private' not in m.modifiers or (constructor and receiver is cls)]
                     if constructor and not candidates and not invocation.arguments:
                         target, reason = receiver, '기본 생성자: ' + receiver.name
                     else:
                         target, reason = choose(candidates, [infer(arg) for arg in invocation.arguments])
+                elif not nested and not (constructor and invocation.body):
+                    arg_types = [infer(arg) for arg in invocation.arguments]
+                    if constructor and external_hint(name):
+                        target, reason = f'{external_hint(name)}|{name}', f'다른 파일 클래스 생성: {name}'
+                    elif not constructor and imported_parent:
+                        target, reason = cross_method_target(external_hint(imported_parent), imported_parent, name, arg_types), f'다른 파일 상위 메서드 호출: {imported_parent}.{name}'
                 store(matches[0], target, reason)
 
             for path, call in nodes:
@@ -184,14 +306,29 @@ def analyze_calls(unit, tokens):
                 selector = any(isinstance(n, (java.tree.MethodInvocation, java.tree.ClassCreator)) for n in path if not isinstance(n, list))
                 qualifier = call.qualifier or ''
                 class_receiver = qualifier in by_name and qualifier not in environment
-                receiver = cls if not qualifier or qualifier == 'this' or is_this else by_name.get(qualifier if class_receiver else environment.get(qualifier))
+                receiver_type = qualifier if (external_hint(qualifier) and qualifier not in environment) else environment.get(qualifier)
+                receiver = cls if not qualifier or qualifier == 'this' or is_this else by_name.get(qualifier if class_receiver else receiver_type)
                 this_chain = any(isinstance(n, java.tree.This) and n.selectors and n.selectors[0] is not call for n in path if not isinstance(n, list))
-                if selector or this_chain or receiver is None:
+                if selector or this_chain:
                     store(name_token, None, '외부·동적 객체 또는 연속 호출의 타입을 확인할 수 없습니다.')
                     continue
+                arg_types = [infer(arg) for arg in call.arguments]
+                if receiver is None:
+                    hint = external_hint(receiver_type)
+                    if hint:
+                        store(name_token, cross_method_target(hint, receiver_type, call.member, arg_types), f'다른 파일 호출 대상: {receiver_type}.{call.member}')
+                    else:
+                        store(name_token, None, '외부·동적 객체 또는 연속 호출의 타입을 확인할 수 없습니다.')
+                    continue
                 hierarchy = list(chain(receiver))
-                if hierarchy[-1].extends and type_name(hierarchy[-1].extends) != 'Object':
-                    store(name_token, None, '상위 클래스가 미등록이거나 상속 순환이 있어 후보를 확정할 수 없습니다.')
+                missing_parent = any(pname != 'Object' and pname not in by_name for h in hierarchy for _, pname in type_parents(h))
+                if missing_parent:
+                    imported_ancestor = next((pname for h in hierarchy for _, pname in type_parents(h) if external_hint(pname)), None)
+                    local_match = [m for m in methods(receiver, call.member) if 'private' not in m.modifiers or m in cls.methods]
+                    if not local_match and imported_ancestor:
+                        store(name_token, cross_method_target(external_hint(imported_ancestor), imported_ancestor, call.member, arg_types), f'다른 파일 상위 메서드 호출: {imported_ancestor}.{call.member}')
+                    else:
+                        store(name_token, None, '상위 클래스가 미등록이거나 상속 순환이 있어 후보를 확정할 수 없습니다.')
                     continue
                 candidates = [m for m in methods(receiver, call.member) if 'private' not in m.modifiers or m in cls.methods]
                 if class_receiver or (not qualifier and not is_this and 'static' in method.modifiers):

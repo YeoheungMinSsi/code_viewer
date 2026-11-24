@@ -32,14 +32,16 @@ def outline(raw):
         parts.append(escape(line[cursor:]))
         return f'<i>{number}</i>' + ''.join(parts)
 
-    def block(node):
-        start = node.position.line
+    def block(node, pos=None):
+        position = pos or node.position
+        start = position.line
         depth = 0
         opened = False
         field = isinstance(node, (java.tree.FieldDeclaration, java.tree.Import, java.tree.PackageDeclaration))
+        enum_const = isinstance(node, java.tree.EnumConstantDeclaration)
         end = start
         for token in tokens:
-            if token.position < node.position:
+            if token.position < position:
                 continue
             end = token.position.line
             # String literals and comments cannot terminate a declaration.
@@ -50,24 +52,51 @@ def outline(raw):
                 opened = True
             elif token.value == '}':
                 depth -= 1
+                if enum_const and depth < 0:
+                    end = token.position.line
+                    break
                 if opened and depth == 0 and not field:
                     break
-            elif token.value == ';' and depth == 0:
+            elif (token.value == ';' or (enum_const and token.value == ',')) and depth == 0:
                 break
         return '<pre>' + '\n'.join(render_line(n) for n in range(start, end + 1)) + '</pre>'
 
-    def card(node, css, kind, name, body):
-        return (f'<details class="{css}" data-line="{node_id(node)}" data-name="{escape(name, quote=True)}">'
-                f'<summary><small>{kind}</small><b>{escape(name)}</b><em>L{node.position.line}</em></summary>{body}</details>')
+    def card(node, css, kind, name, body, pos=None):
+        position = pos or node.position
+        ident = f'J{position.line}_{position.column}' if pos else node_id(node)
+        return (f'<details class="{css}" data-line="{ident}" data-name="{escape(name, quote=True)}">'
+                f'<summary><small>{kind}</small><b>{escape(name)}</b><em>L{position.line}</em></summary>{body}</details>')
+
+    TYPE_NODES = (java.tree.ClassDeclaration, java.tree.InterfaceDeclaration, java.tree.EnumDeclaration, java.tree.AnnotationDeclaration)
 
     def class_card(node):
         members = []
-        for member in node.body:
-            if isinstance(member, java.tree.ClassDeclaration):
+        if isinstance(node, java.tree.EnumDeclaration):
+            cursor = node.position
+            for const in (node.body.constants if node.body else []):
+                tok = next((t for t in tokens if t.position > cursor and t.value == const.name), None)
+                pos = const.position or (tok.position if tok else node.position)
+                cursor = pos
+                members.append(card(const, 'var', '열거 상수', const.name, block(const, pos), pos))
+            body_nodes = node.body.declarations if node.body else []
+            type_kind = '열거형'
+        elif isinstance(node, java.tree.InterfaceDeclaration):
+            body_nodes = node.body or []
+            type_kind = '인터페이스'
+        elif isinstance(node, java.tree.AnnotationDeclaration):
+            body_nodes = node.body or []
+            type_kind = '애노테이션'
+        else:
+            body_nodes = node.body or []
+            type_kind = '클래스'
+        for member in body_nodes:
+            if isinstance(member, TYPE_NODES):
                 members.append(class_card(member))
-            elif isinstance(member, java.tree.FieldDeclaration):
-                kind = '클래스 변수' if 'static' in member.modifiers else '인스턴스 변수'
+            elif isinstance(member, (java.tree.FieldDeclaration, java.tree.ConstantDeclaration)):
+                kind = '상수' if isinstance(member, java.tree.ConstantDeclaration) else ('클래스 변수' if 'static' in member.modifiers else '인스턴스 변수')
                 members.append(card(member, 'var', kind, ', '.join(d.name for d in member.declarators), block(member)))
+            elif isinstance(member, java.tree.AnnotationMethod):
+                members.append(card(member, 'fn', '요소', member.name + '()', block(member)))
             elif isinstance(member, (java.tree.MethodDeclaration, java.tree.ConstructorDeclaration)):
                 constructor = isinstance(member, java.tree.ConstructorDeclaration)
                 main = (not constructor and member.name == 'main' and {'public', 'static'} <= member.modifiers
@@ -80,12 +109,14 @@ def outline(raw):
                 signature = member.name + '(' + ', '.join(p.type.name + ('[]' * len(p.type.dimensions or [])) + ('...' if p.varargs else '') + ' ' + p.name for p in member.parameters) + ')'
                 members.append(card(member, 'fn entry' if main else 'fn', label, signature, block(member)))
             else:
-                raise ValueError('현재 Java 분석기는 클래스·필드·생성자·메서드를 지원합니다. 초기화 블록이나 기타 선언은 아직 지원하지 않습니다.')
-        result = card(node, 'cls', '클래스', node.name, '<section>' + ''.join(members) + '</section>')
+                raise ValueError('현재 Java 분석기는 클래스·인터페이스·열거형·애노테이션·필드·생성자·메서드를 지원합니다. 초기화 블록이나 기타 선언은 아직 지원하지 않습니다.')
+        result = card(node, 'cls', type_kind, node.name, '<section>' + ''.join(members) + '</section>')
         if id(node) in inheritance:
-            target, name = inheritance[id(node)]
-            button = f'<button class="call inheritance" data-target="{escape(target, quote=True)}" title="상속 관계: 부모 클래스의 기능을 물려받습니다.">extends {escape(name)}</button>'
-            result = result.replace('</summary>', button + '</summary>', 1)
+            buttons = ''.join(
+                f'<button class="call inheritance" data-target="{escape(target, quote=True)}" title="상속·구현 관계: 상위 타입의 기능을 물려받거나 구현합니다.">{escape(kw)} {escape(name)}</button>'
+                for kw, target, name in inheritance[id(node)]
+            )
+            result = result.replace('</summary>', buttons + '</summary>', 1)
         return result
 
     items = []
@@ -95,7 +126,7 @@ def outline(raw):
         body = '<pre>' + '\n'.join(block(node)[5:-6] for node in unit.imports) + '</pre>'
         items.append(card(unit.imports[0], 'imp', 'import', f'가져오기 · {len(unit.imports)}개 선언', body))
     for node in unit.types:
-        if not isinstance(node, java.tree.ClassDeclaration):
-            raise ValueError('현재 Java 분석기는 class 선언을 지원합니다. interface·enum·annotation 선언은 아직 지원하지 않습니다.')
+        if not isinstance(node, TYPE_NODES):
+            raise ValueError('현재 Java 분석기는 class·interface·enum·@interface 선언을 지원합니다.')
         items.append(class_card(node))
     return '<section>' + ''.join(items) + '</section>' if items else '<pre>' + escape(source) + '</pre>'

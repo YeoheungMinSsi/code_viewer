@@ -8,7 +8,7 @@
 
 - **캔버스 시각화**: 파일(문서), 클래스(원), 함수·메서드(네모), 전역·클래스 변수(육각형), import(보라색 블록), 실행 시작점(파란 카드)을 작성 순서대로 펼쳐 봅니다.
 - **호출·상속 점선**: 함수 본문의 호출이나 클래스의 상속 버튼을 누르면 대상까지 점선 화살표로 연결합니다. 대상을 확정할 수 없으면 회색 점선 밑줄과 함께 이유를 안내합니다.
-- **단계별 학습 예제**: 상단 메뉴에서 `Python (주문)`, `Python (상속)`, `Java (주문)` 예제를 골라 시작점 → 객체 생성 → 메서드 호출 → 데이터 흐름을 코드 줄 강조와 함께 따라볼 수 있습니다.
+- **단계별 학습 예제**: 상단 메뉴에서 `Python (주문)`, `Python (상속)`, `Java (주문)`, `C# (주문)` 예제를 골라 시작점 → 객체 생성 → 메서드 호출 → 데이터 흐름을 코드 줄 강조와 함께 따라볼 수 있습니다.
 - **폴더 탐색과 검색**: 프로젝트 폴더를 추가하면 왼쪽 트리에 계층으로 표시되며, 캔버스로 끌어놓아 배치합니다. 파일·클래스·함수 이름 검색과 호출 흐름 집중 보기를 지원합니다.
 - **코드 메모와 자동 저장**: 코드 영역을 우클릭해 메모를 남기고 이동·크기 조절·검색·Markdown 내보내기를 할 수 있습니다. 작업 상태와 메모는 약 1초마다 자동 저장되며 삭제 되돌리기를 지원합니다.
 
@@ -57,9 +57,10 @@ py -m venv .venv
   - 명시적인 절대·상대 import 및 별칭을 통한 파일 간 호출 연결
   - 제한: 외부 라이브러리, 동적 호출, 2단계 이상 파일 간 상속 체인은 연결하지 않고 이유를 안내합니다. 중첩 함수 자체는 별도 도형으로 표시하지 않습니다.
 - **Java (`.java`)**
-  - Java 8 기준 클래스·필드·생성자·메서드·`main()` 시작점·`package`·`import` 표시
-  - 같은 파일의 호출, 객체 생성, 상속, 오버라이드 표시 및 기본 타입 오버로딩 해석
-  - 제한: `interface`·`enum`·파일 간 호출·제네릭·가변 인자 해석은 제한됩니다.
+  - Java 8 기준 클래스·인터페이스·열거형(`enum`)·애노테이션(`@interface`)·필드·상수·생성자·메서드·`main()` 시작점·`package`·`import` 표시
+  - 같은 파일의 호출, 객체 생성, `extends`·`implements` 상속·구현, 오버라이드 표시 및 기본 타입·제네릭·가변 인자(`varargs`) 오버로딩 해석
+  - 명시적 `import`, 와일드카드(`import pkg.*`), 같은 패키지 타입의 파일 간 상속·생성자·오버로딩 메서드 호출 연결
+  - 제한: 오토박싱·복잡한 제네릭 와일드카드 추론이나 이름이 중복된 외부 파일은 확정하지 않고 이유를 안내합니다.
 - **C# (`.cs`)**
   - 클래스·메서드·필드·시작점·상속 표시
   - 지역 변수·매개변수·필드·`var` 타입 추적, 오버로딩 선택, 여러 파일의 네임스페이스·`using` 별칭 연결
@@ -77,6 +78,7 @@ py -m venv .venv
 | `examples/OrderExample.java` | Java 클래스·필드·생성자·`main()` 구조 |
 | `examples/JavaCallsExample.java` | Java 호출·상속·오버로딩 |
 | `examples/LearningExample.java` | Java 주문 학습 예제 (5단계 가이드) |
+| `examples/LearningExample.cs` | C# 주문 학습 예제 (5단계 가이드) |
 | `examples/CSharpExample.cs` | C# 기본 구조와 호출 |
 | `examples/csharp_project_example/` | C# 여러 파일 네임스페이스·`using` 호출 |
 | `examples/csharp_advanced_example/` | C# 확장 메서드·제네릭 제약·`dynamic`·리플렉션 |
@@ -111,8 +113,8 @@ code-viewer/
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 
 # 캔버스 로직 테스트 (Node.js)
-node tests/test_canvas.cjs
+pnpm run test:canvas
 
-# 브라우저 통합 테스트 (Playwright + Chromium 필요)
-node tests/test_browser.cjs
+# 브라우저 통합 테스트 (최초 1회: pnpm install && pnpm exec playwright install chromium)
+pnpm run test:browser
 ```

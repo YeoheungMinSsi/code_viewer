@@ -1,0 +1,11 @@
+{
+  "name": "code-viewer",
+  "private": true,
+  "scripts": {
+    "test:canvas": "node tests/test_canvas.cjs",
+    "test:browser": "node tests/test_browser.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
+  }
+}
