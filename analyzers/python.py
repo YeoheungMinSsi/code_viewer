@@ -10,7 +10,12 @@ def outline(raw):
     lines = source.split('\n')
     tree = ast.parse(source)
 
-    definitions = {n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
+    # Do not claim a definition when the module rebinds its name.
+    rebound = {n.id for statement in tree.body if not isinstance(statement, (*FUNCS, ast.ClassDef))
+               for n in ast.walk(statement) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+    definitions = {n.name: n for n in tree.body if isinstance(n, FUNCS) and n.name not in rebound}
+    classes = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef) and n.name not in rebound}
     imports = {}
     for statement in tree.body:
         if isinstance(statement, ast.ImportFrom):
@@ -19,82 +24,107 @@ def outline(raw):
         elif isinstance(statement, ast.Import):
             for alias in statement.names:
                 imports[alias.asname or alias.name] = (alias.name, '')
+
+    def lineage(cls):
+        # Only a single same-file parent chain is certain; multiple or external parents stop it.
+        chain = []
+        while cls is not None and cls not in chain:
+            chain.append(cls)
+            base = cls.bases[0] if len(cls.bases) == 1 else None
+            cls = classes.get(base.id) if isinstance(base, ast.Name) else None
+        return chain
+
+    def owner(cls, name, skip=0):
+        for c in lineage(cls)[skip:]:
+            found = [m for m in c.body if isinstance(m, FUNCS) and m.name == name]
+            if found:
+                return c, found[-1]
+        return None, None
+
+    def descends(c, cls, seen=()):
+        parents = [classes.get(b.id) for b in c.bases if isinstance(b, ast.Name)]
+        return any(p is cls or (p is not None and p not in seen and descends(p, cls, seen + (c,))) for p in parents)
+
+    def method_link(cls, name, exact, skip=0):
+        target = owner(cls, name, skip)[1]
+        if target is None:
+            return None
+        others = [] if exact else [c.name for c in classes.values() if descends(c, cls) and owner(c, name)[1] is not target]
+        if others:
+            return f'?자식 클래스 {", ".join(others)}에서 재정의되어, 어떤 객체인지에 따라 실행되는 메서드가 달라집니다.'
+        return str(target.lineno)
+
+    def objects(nodes, args=()):
+        """Names bound exactly once to ClassName(), or annotated parameters never reassigned."""
+        stores, hidden, found = {}, set(), {}
+        for n in nodes:
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+                stores[n.id] = stores.get(n.id, 0) + 1
+            elif isinstance(n, (ast.Global, ast.Nonlocal)):
+                hidden.update(n.names)
+        for n in nodes:
+            if (isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)
+                    and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Name)
+                    and n.value.func.id in classes and n.value.func.id not in stores):
+                found[n.targets[0].id] = (classes[n.value.func.id], True)
+        for a in args:
+            if isinstance(a.annotation, ast.Name) and a.annotation.id in classes and a.annotation.id not in stores:
+                found[a.arg] = (classes[a.annotation.id], False)
+        return {k: v for k, v in found.items() if k not in hidden and stores.get(k, 0) == (1 if v[1] else 0)}
+
+    calls = {}
+
+    def link(nodes, bound, objs, cls=None, self_name=None):
+        for call in nodes:
+            if not isinstance(call, ast.Call):
+                continue
+            f, target = call.func, None
+            if isinstance(f, ast.Name) and f.id not in bound:
+                node = definitions.get(f.id) or classes.get(f.id)
+                target = str(node.lineno) if node else imports.get(f.id) and '|'.join(imports[f.id])
+            elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+                name = f.value.id
+                if name == self_name:
+                    target = method_link(cls, f.attr, False)
+                elif name in objs:
+                    target = method_link(objs[name][0], f.attr, objs[name][1])
+                elif name not in bound and imports.get(name, ('', 'x'))[1] == '':
+                    target = imports[name][0] + '|' + f.attr
+            elif (isinstance(f, ast.Attribute) and isinstance(f.value, ast.Call) and isinstance(f.value.func, ast.Name)
+                  and f.value.func.id == 'super' and not f.value.args and cls is not None):
+                target = method_link(cls, f.attr, True, 1)
+            if target and f.lineno == f.end_lineno:
+                calls.setdefault(f.lineno, []).append((f.col_offset, f.end_col_offset, target))
+
     def function_nodes(fn):
         yield fn
         pending = list(fn.body)
         while pending:
             node = pending.pop()
             yield node
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            if not isinstance(node, (*FUNCS, ast.ClassDef, ast.Lambda)):
                 pending.extend(ast.iter_child_nodes(node))
 
-    calls = {}
-    for scope in [tree] + [n for n in tree.body if isinstance(n, ast.ClassDef)]:
-        methods = {n.name: n for n in scope.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        for fn in methods.values():
-            # shortcut: dynamic dispatch is not resolved; add scope analysis before linking nested functions.
-            if fn.decorator_list:
-                continue
+    # Nested functions are not analysed yet; their bodies need their own scope.
+    for scope in [tree, *classes.values()]:
+        for fn in [n for n in scope.body if isinstance(n, FUNCS)]:
             nodes = list(function_nodes(fn))
             bound = {n.id for n in nodes if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
-            bound.update(n.name for n in nodes if n is not fn and isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
-            bound.update(a.arg for a in ast.walk(fn.args) if isinstance(a, ast.arg))
-            for call in nodes:
-                if not isinstance(call, ast.Call):
-                    continue
-                target = None
-                f = call.func
-                if isinstance(f, ast.Name) and f.id not in bound:
-                    target = definitions.get(f.id)
-                elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == 'self' and isinstance(scope, ast.ClassDef) and not scope.bases and fn.args.args and fn.args.args[0].arg == 'self' and not any(isinstance(n, ast.Name) and n.id == 'self' and isinstance(n.ctx, ast.Store) for n in ast.walk(fn)):
-                    target = methods.get(f.attr)
-                external = None
-                if isinstance(f, ast.Name) and f.id not in bound:
-                    external = imports.get(f.id)
-                elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id not in bound:
-                    module = imports.get(f.value.id)
-                    if module and not module[1]:
-                        external = (module[0], f.attr)
-                if external and f.lineno == f.end_lineno:
-                    calls.setdefault(f.lineno, []).append((f.col_offset, f.end_col_offset, '|'.join(external)))
-                if target and f.lineno == f.end_lineno:
-                    calls.setdefault(f.lineno, []).append((f.col_offset, f.end_col_offset, str(target.lineno)))
+            bound.update(n.name for n in nodes if n is not fn and isinstance(n, (*FUNCS, ast.ClassDef)))
+            args = [a for a in ast.walk(fn.args) if isinstance(a, ast.arg)]
+            bound.update(a.arg for a in args)
+            cls = scope if isinstance(scope, ast.ClassDef) else None
+            first = fn.args.args[0].arg if cls and fn.args.args and not fn.decorator_list else None
+            self_name = first if first and not any(isinstance(n, ast.Name) and n.id == first and isinstance(n.ctx, ast.Store) for n in nodes) else None
+            link(nodes, bound, objects(nodes, args), cls, self_name)
 
     def is_entry(node):
         return isinstance(node, ast.If) and isinstance(node.test, ast.Compare) and ast.dump(node.test) == ast.dump(ast.parse('__name__ == "__main__"', mode='eval').body)
 
-    classes = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+    module_nodes = [n for statement in tree.body if not isinstance(statement, (*FUNCS, ast.ClassDef)) for n in ast.walk(statement)]
+    module_objects = objects(module_nodes + [n for n in ast.walk(tree) if isinstance(n, ast.Global)])
     for entry in [n for n in tree.body if is_entry(n)]:
-        objects = {}
-        for statement in entry.body:
-            for call in ast.walk(statement):
-                if not isinstance(call, ast.Call):
-                    continue
-                f, target = call.func, None
-                if isinstance(f, ast.Name):
-                    target = classes.get(f.id) or definitions.get(f.id)
-                elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
-                    cls = objects.get(f.value.id)
-                    if cls and not cls.bases:
-                        target = next((n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == f.attr and not n.decorator_list), None)
-                if target and f.lineno == f.end_lineno:
-                    calls.setdefault(f.lineno, []).append((f.col_offset, f.end_col_offset, str(target.lineno)))
-            for n in ast.walk(statement):
-                if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
-                    objects.pop(n.id, None)
-            if isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Call) and isinstance(statement.value.func, ast.Name):
-                cls = classes.get(statement.value.func.id)
-                if cls:
-                    for name in statement.targets:
-                        if isinstance(name, ast.Name):
-                            objects[name.id] = cls
-
-    # Do not claim a definition when the module rebinds its name.
-    rebound = {n.id for statement in tree.body if not isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-               for n in ast.walk(statement) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
-    for line, entries in calls.items():
-        calls[line] = [(left, right, target) for left, right, target in entries
-                       if not (target.isdigit() and any(name in rebound and str(node.lineno) == target for name, node in definitions.items()))]
+        link([n for statement in entry.body for n in ast.walk(statement)], set(), module_objects)
     for call in ast.walk(tree):
         if isinstance(call, ast.Call):
             f = call.func
@@ -131,9 +161,19 @@ def outline(raw):
                 start = min([child.lineno] + [d.lineno for d in child.decorator_list])
                 cls = isinstance(child, ast.ClassDef)
                 kind = '클래스' if cls else ('비동기 함수' if isinstance(child, ast.AsyncFunctionDef) else '함수')
+                parent = owner(in_class, child.name, 1)[0] if in_class and not cls else None
+                if parent:
+                    kind += f' · 재정의({escape(parent.name)})'
                 name = child.name if cls else f'{child.name}({ast.unparse(child.args)})'
-                body = (cards(child, True) or '<p>표시할 멤버가 없습니다.</p>') if cls else code(start, child.end_lineno)
-                items.append((start, f'<details data-name="{escape(child.name, quote=True)}" data-line="{child.lineno}" class="{"cls" if cls else "fn"}"><summary><small>{kind}</small> <b>{escape(name)}</b> <em>L{child.lineno}</em></summary>{body}</details>'))
+                body = (cards(child, child) or '<p>표시할 멤버가 없습니다.</p>') if cls else code(start, child.end_lineno)
+                bases = ''
+                for base in child.bases if cls else []:
+                    if isinstance(base, ast.Name) and base.id == 'object':
+                        continue
+                    found = classes.get(base.id) if isinstance(base, ast.Name) else None
+                    target = str(found.lineno) if found else '?이 파일에 정의되지 않은 부모 클래스입니다(외부 라이브러리 또는 다른 파일).'
+                    bases += f'<button class="call inheritance" data-target="{escape(target, quote=True)}" title="상속 관계: 부모 클래스의 기능을 물려받습니다.">상속 {escape(ast.unparse(base))}</button>'
+                items.append((start, f'<details data-name="{escape(child.name, quote=True)}" data-line="{child.lineno}" class="{"cls" if cls else "fn"}"><summary><small>{kind}</small> <b>{escape(name)}</b> <em>L{child.lineno}</em>{bases}</summary>{body}</details>'))
             elif is_entry(child):
                 items.append((child.lineno, f'<details class="entry"><summary><small>실행 시작점</small><b>여기서 시작</b><em>L{child.lineno}</em></summary>{code(child.lineno, child.end_lineno)}</details>'))
             elif isinstance(child, (ast.Import, ast.ImportFrom)):
