@@ -3,9 +3,12 @@ from pathlib import PurePosixPath
 from .python import outline as python_outline
 from .java import outline as java_outline
 
+from .csharp import outline as csharp_outline
+
 ANALYZERS = {
     ".py": ("python", "Python", python_outline),
     ".java": ("java", "Java", java_outline),
+    ".cs": ("csharp", "C#", csharp_outline),
 }
 
 

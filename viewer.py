@@ -44,6 +44,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
+        if self.path == '/csharp-links':
+            if self.headers.get('Content-Type') != 'application/json':
+                return self.reply(400, 'JSON 요청이 필요합니다.')
+            try:
+                size = int(self.headers.get('Content-Length', '-1'))
+                if not 0 <= size <= 50 * 1024 * 1024:
+                    return self.reply(413, '분석 요청은 최대 50 MiB입니다.')
+                files = json.loads(self.rfile.read(size))
+                if not isinstance(files, dict) or len(files) > 300 or any(not isinstance(path, str) or not isinstance(source, str) or len(source.encode()) > LIMIT for path, source in files.items()):
+                    raise ValueError('올바른 C# 파일 목록이 아닙니다.')
+                from analyzers.csharp_calls import Project
+                return self.reply(200, json.dumps(Project(files).links()), 'application/json')
+            except (ValueError, TypeError, RecursionError) as err:
+                return self.reply(400, f'C# 호출을 분석할 수 없습니다: {err}')
         if self.path == '/autosave':
             if self.headers.get('Content-Type') != 'application/json' or self.headers.get('Origin') != 'http://' + self.headers.get('Host', ''):
                 return self.reply(403, '허용되지 않은 저장 요청입니다.')

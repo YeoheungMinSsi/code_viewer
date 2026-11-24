@@ -1,3 +1,6 @@
 # Java 8 source parsing; Python analysis still uses the standard library.
 javalang==0.13.0
 six==1.17.0
+
+tree-sitter==0.23.2
+tree-sitter-c-sharp==0.23.1
