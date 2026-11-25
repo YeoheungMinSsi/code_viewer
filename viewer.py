@@ -11,6 +11,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 EXAMPLES = ROOT / 'examples'
+LESSON_FILES = {
+    '/learning-example': 'learning_example.py',
+    '/learning-example-oop': 'inheritance_example.py',
+    '/learning-example-java': 'LearningExample.java',
+    '/learning-example-csharp': 'LearningExample.cs',
+    '/learning-example-ts': 'learning_example.ts',
+    '/learning-example-js-oop': 'inheritance_example.js',
+}
 AUTOSAVE = Path(os.environ.get('CODE_VIEWER_AUTOSAVE', str(ROOT / '.autosave.json')))
 SAVE_LOCK = threading.Lock()
 LIMIT = 5 * 1024 * 1024
@@ -39,14 +47,8 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, (ROOT / 'static' / 'app.css').read_text(encoding='utf-8'), 'text/css')
         elif self.path == '/static/app.js':
             self.reply(200, (ROOT / 'static' / 'app.js').read_text(encoding='utf-8'), 'application/javascript')
-        elif self.path == '/learning-example-csharp':
-            self.reply(200, (EXAMPLES / 'LearningExample.cs').read_text(encoding='utf-8'))
-        elif self.path == '/learning-example-java':
-            self.reply(200, (EXAMPLES / 'LearningExample.java').read_text(encoding='utf-8'))
-        elif self.path == '/learning-example-oop':
-            self.reply(200, (EXAMPLES / 'inheritance_example.py').read_text(encoding='utf-8'))
-        elif self.path == '/learning-example':
-            self.reply(200, (EXAMPLES / 'learning_example.py').read_text(encoding='utf-8'))
+        elif self.path in LESSON_FILES:
+            self.reply(200, (EXAMPLES / LESSON_FILES[self.path]).read_text(encoding='utf-8'))
         elif self.path == '/':
             self.reply(200, (ROOT / 'index.html').read_text(encoding='utf-8'), 'text/html')
         else:

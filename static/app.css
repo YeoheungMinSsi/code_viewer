@@ -1,6 +1,9 @@
 * {
   box-sizing:border-box;
 }
+[hidden] {
+  display:none!important;
+}
 body {
   margin:0;
   color:#223c34;
@@ -478,4 +481,35 @@ header {
 }
 #explorer .tool-group button {
   margin:3px;
+}
+#quiz {
+  margin:8px 0;
+  padding:8px;
+  border:1px solid #c6d3c8;
+  border-radius:6px;
+  background:#f8fbf9;
+  font-size:12px;
+}
+#quiz strong {
+  display:block;
+  margin-bottom:6px;
+}
+#quiz button {
+  display:block;
+  width:100%;
+  text-align:left;
+  margin:4px 0;
+  font-size:12px;
+}
+#quiz button.correct {
+  background:#dff5e6;
+  border-color:#2d6f55;
+}
+#quiz button.wrong {
+  background:#fde8e8;
+  border-color:#b54242;
+}
+#quiz p {
+  margin:6px 0 0;
+  color:#284438;
 }

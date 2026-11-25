@@ -8,7 +8,7 @@
 
 - **캔버스 시각화**: 파일(문서), 클래스(원), 함수·메서드(네모), 전역·클래스 변수(육각형), import(보라색 블록), 실행 시작점(파란 카드)을 작성 순서대로 펼쳐 봅니다.
 - **호출·상속 점선**: 함수 본문의 호출이나 클래스의 상속 버튼을 누르면 대상까지 점선 화살표로 연결합니다. 대상을 확정할 수 없으면 회색 점선 밑줄과 함께 이유를 안내합니다.
-- **단계별 학습 예제**: 상단 메뉴에서 `Python (주문)`, `Python (상속)`, `Java (주문)`, `C# (주문)` 예제를 골라 시작점 → 객체 생성 → 메서드 호출 → 데이터 흐름을 코드 줄 강조와 함께 따라볼 수 있습니다.
+- **단계별 학습 예제·확인 퀴즈·언어 비교**: 상단 메뉴에서 `Python (주문/상속)`, `Java (주문)`, `C# (주문)`, `TypeScript (주문)`, `JavaScript (상속)` 예제를 골라 코드 줄 강조·데이터 흐름·확인 퀴즈로 학습하고, **언어 비교** 버튼으로 같은 주문 예제를 두 언어로 나란히 띄워 `클래스`·`생성자`·`메서드`·`시작점`을 비교할 수 있습니다.
 - **폴더 탐색과 검색**: 프로젝트 폴더를 추가하면 왼쪽 트리에 계층으로 표시되며, 캔버스로 끌어놓아 배치합니다. 파일·클래스·함수 이름 검색과 호출 흐름 집중 보기를 지원합니다.
 - **코드 메모와 자동 저장**: 코드 영역을 우클릭해 메모를 남기고 이동·크기 조절·검색·Markdown 내보내기를 할 수 있습니다. 작업 상태와 메모는 약 1초마다 자동 저장되며 삭제 되돌리기를 지원합니다.
 
@@ -18,9 +18,16 @@
 
 - Python 3.9 이상과 최신 웹 브라우저
 - **Python 분석만 사용**: 추가 패키지 설치 없이 바로 실행할 수 있습니다.
-- **Java·C# 분석 포함**: 가상환경에 `requirements.txt`(`javalang`, `tree-sitter`, `tree-sitter-c-sharp`)를 설치합니다.
+- **Java·C#·TypeScript·JavaScript 분석 포함**: 가상환경에 `requirements.txt`(`javalang`, `tree-sitter`, `tree-sitter-c-sharp`, `tree-sitter-typescript`, `tree-sitter-javascript`)를 설치합니다.
 
-### macOS / Linux
+### 간편 실행 (초보자 추천)
+
+- **macOS**: `start.command`를 더블클릭합니다.
+- **Windows**: `start.bat`을 더블클릭합니다.
+
+최초 실행 시 `.venv` 가상환경을 만들고 필요한 패키지를 자동으로 설치한 뒤 브라우저를 엽니다.
+
+### 터미널에서 직접 실행 (macOS / Linux)
 
 ```bash
 python3 -m venv .venv
@@ -65,6 +72,11 @@ py -m venv .venv
   - 클래스·메서드·필드·시작점·상속 표시
   - 지역 변수·매개변수·필드·`var` 타입 추적, 오버로딩 선택, 여러 파일의 네임스페이스·`using` 별칭 연결
   - 확장 메서드, 제네릭 제약, 변경되지 않은 지역 `dynamic` 변수, 정적으로 확인 가능한 `typeof → GetMethod → Invoke` 리플렉션 연결
+- **TypeScript / JavaScript (`.ts`, `.js`)**
+  - 클래스·추상 클래스·인터페이스·필드·생성자·메서드·함수·`import`·최상위 실행 시작점 표시
+  - 같은 파일의 함수·생성자(`new`)·`this.메서드()`·`super()`·`super.메서드()`·재정의 표시(`재정의(부모)`)·단일 대입 객체 및 타입 주석 매개변수 호출 연결
+  - `import { ... }`, `import * as ...`, `export default`를 통한 파일 간 함수·클래스·상속 메서드 연결 및 `this.속성 = new 클래스()` 호출 연결
+  - 제한: `.tsx`/`.jsx` 문법, 동적 호출 및 외부 패키지는 연결하지 않고 이유를 안내합니다. (최상위 화살표 함수 `const f = (...) => ...`는 함수 카드로 표시합니다.)
 
 ## 예제 (`examples/`)
 
@@ -82,6 +94,9 @@ py -m venv .venv
 | `examples/CSharpExample.cs` | C# 기본 구조와 호출 |
 | `examples/csharp_project_example/` | C# 여러 파일 네임스페이스·`using` 호출 |
 | `examples/csharp_advanced_example/` | C# 확장 메서드·제네릭 제약·`dynamic`·리플렉션 |
+| `examples/learning_example.ts` | TypeScript 주문 학습 예제 (5단계 가이드·퀴즈) |
+| `examples/inheritance_example.js` | JavaScript 상속·`super()`·재정의 학습 예제 (5단계 가이드·퀴즈) |
+| `examples/ts_project_example/` | TypeScript 인터페이스·`import` 파일 간 상속·호출 연결 |
 
 ## 프로젝트 구성
 
@@ -99,7 +114,8 @@ code-viewer/
 │  ├─ java_calls.py      # Java 호출·상속·오버로딩 분석
 │  ├─ csharp.py          # C# 구조 분석기
 │  ├─ csharp_calls.py    # C# 여러 파일 호출 분석
-│  └─ csharp_advanced.py # C# 확장 메서드·제네릭·dynamic·리플렉션
+│  ├─ csharp_advanced.py # C# 확장 메서드·제네릭·dynamic·리플렉션
+│  └─ typescript.py      # TypeScript·JavaScript 구조 및 호출 분석
 ├─ examples/             # 언어별 예제 파일·폴더
 ├─ tests/                # Python 단위 테스트 및 JS 캔버스·브라우저 테스트
 ├─ requirements.txt      # Java·C# 파서 의존성

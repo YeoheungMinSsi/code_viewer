@@ -249,12 +249,12 @@ function resolveCall(call){
       module=[...parts,module.slice(level)].filter(Boolean).join('.');
     }
     const mods=file.dataset.language==='java'?module.split(','):[module];
-    const candidates=[...output.querySelectorAll('.file')].filter(p=>p.dataset.language===file.dataset.language&&mods.some(m=>p.dataset.module===m||p.dataset.qualified===m||(file.dataset.language==='java'&&p.dataset.module===m.split('.').pop())));
+    const candidates=[...output.querySelectorAll('.file')].filter(p=>p.dataset.language===file.dataset.language&&mods.some(m=>p.dataset.module===m||p.dataset.qualified===m||(['java','typescript','javascript'].includes(file.dataset.language)&&p.dataset.module.split('.').pop()===m.split('.').pop())));
     if(candidates.length!==1)return null;
     if(name.includes('.')){
       const dot=name.indexOf('.');
       const clsName=name.slice(0,dot),methodSpec=name.slice(dot+1);
-      const cls=[...candidates[0].querySelectorAll(':scope > div > section > .cls')].find(n=>n.dataset.name===clsName);
+      const cls=clsName==='default'?candidates[0].querySelector(':scope > div > section > .cls[data-default="true"]'):[...candidates[0].querySelectorAll(':scope > div > section > .cls')].find(n=>n.dataset.name===clsName);
       if(!cls)return null;
       const paren=methodSpec.indexOf('(');
       const methodName=paren===-1?methodSpec:methodSpec.slice(0,paren);
@@ -266,7 +266,7 @@ function resolveCall(call){
         const exact=byName.filter(n=>{const pt=paramTypes(n);return pt.length===argTypes.length&&pt.every((t,i)=>t===argTypes[i])});
         target=exact.length===1?exact[0]:(byName.length===1?byName[0]:null);
       }else target=byName.length===1?byName[0]:null;
-    }else target=[...candidates[0].querySelectorAll(':scope > div > section > .fn, :scope > div > section > .cls')].find(n=>n.dataset.name===name);
+    }else target=name==='default'?candidates[0].querySelector(':scope > div > section > [data-default="true"]'):[...candidates[0].querySelectorAll(':scope > div > section > .fn, :scope > div > section > .cls')].find(n=>n.dataset.name===name);
   }else target=file.querySelector('[data-line="'+call.dataset.target+'"]');
   return target;
 }
@@ -285,8 +285,8 @@ async function load(file,replaceExisting=true){
   panel.dataset.path=file.webkitRelativePath||file.name;
   const relative=file.webkitRelativePath?file.webkitRelativePath.split('/').slice(1).join('/'):file.name;
   panel.dataset.folder=file.webkitRelativePath?file.webkitRelativePath.split('/')[0]:'';
-  panel.dataset.qualified=(file.webkitRelativePath||file.name).replace(/\.(py|java)$/i,'').replace(/\/__init__$/,'').replaceAll('/','.');
-  panel.dataset.module=relative.replace(/\.(py|java)$/i,'').replace(/\/__init__$/,'').replaceAll('/','.');
+  panel.dataset.qualified=(file.webkitRelativePath||file.name).replace(/\.(py|java|ts|js)$/i,'').replace(/\/__init__$/,'').replaceAll('/','.');
+  panel.dataset.module=relative.replace(/\.(py|java|ts|js)$/i,'').replace(/\/__init__$/,'').replaceAll('/','.');
   const kind=document.createElement('small'),name=document.createElement('b');
   kind.textContent='코드 파일';
   name.textContent=relative;
@@ -300,12 +300,16 @@ async function load(file,replaceExisting=true){
     const supported=await languages();
     const language=supported.find(item=>file.name.toLowerCase().endsWith(item.extension));
     if(!language)throw Error(relative+'은 가지고 올 수 없습니다. 이유: 지원하는 파일 형식은 '+supported.map(item=>item.extension).join(', ')+'입니다. 폴더는 “폴더 추가”를 사용하세요.');
+    const langTips={
+      python:'Python: 구조·다중/교차파일 상속·객체 호출 분석',
+      java:'Java 8: 클래스·인터페이스·열거형·애노테이션·제네릭·가변 인자·교차파일 분석',
+      csharp:'C#: 구조·타입 추적·오버로딩·확장 메서드·제네릭·교차파일 분석',
+      typescript:'TypeScript: 구조·상속·화살표 함수·import 교차파일 분석',
+      javascript:'JavaScript: 구조·상속·화살표 함수·import 교차파일 분석'
+    };
     kind.textContent=language.name+' 파일';
+    if(langTips[language.id])kind.title=langTips[language.id];
     panel.dataset.language=language.id;
-    if(language.id==='java'){
-      kind.title='Java 8: 같은 파일의 호출·상속·기본 타입 오버로딩 분석';
-      kind.textContent='Java 파일'
-    }
     if(file.size>5*1024*1024)throw Error(relative+'은 5 MiB를 초과하여 가지고 올 수 없습니다.');
     const res=await fetch('/outline',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Source-Name':encodeURIComponent(file.name)},body:file});
     const body=await res.text();
@@ -504,6 +508,24 @@ const LESSONS={
     ['[data-name^="format_total("]',5,'5. format_total이 가격을 문장으로 바꿉니다. 점선은 정적 호출 관계이며 실제 실행 기록은 아닙니다.','[예시 흐름] value = 12000 → "합계: 12000원" 반환 → println() 출력']
     ]
   },
+  typescript:{
+    url:'/learning-example-ts',file:'learning_example.ts',steps:[
+    ['.entry',21,'1. 파일 맨 아래의 최상위 코드에서 시작합니다. new Order()로 객체를 만듭니다.','[예시 흐름] new Order() → 새 객체(order) 생성 → constructor 실행'],
+    ['[data-name="constructor"]',9,'2. Order는 설계도, order는 만든 객체입니다. constructor가 this.price를 준비합니다.','[예시 흐름] this = 방금 만든 order 객체 → this.price = 12000',['Order와 order의 관계로 맞는 것은?',['Order는 설계도(클래스), order는 그것으로 만든 객체','둘은 같은 것이다','order가 Order를 만든다'],0,'클래스는 설계도이고, new로 만든 값이 객체(인스턴스)입니다.']],
+    ['[data-name="receipt"]',17,'3. order.receipt()는 객체의 receipt 메서드를 호출합니다.','[예시 흐름] order.receipt() → this.total() 호출'],
+    ['[data-name="total"]',13,'4. receipt는 this.total()로 같은 객체의 total을 호출해 가격을 얻습니다.','[예시 흐름] this.price(12000) → receipt()로 12000 반환',['receipt 안의 this.total()에서 this는 무엇일까요?',['receipt를 호출한 order 객체','Order 클래스 자체','formatTotal 함수'],0,'메서드 안의 this는 그 메서드를 호출한 객체입니다.']],
+    ['[data-name="formatTotal"]',2,'5. formatTotal이 가격을 문장으로 바꿉니다. 점선은 정적 호출 관계이며 실제 실행 기록은 아닙니다.','[예시 흐름] value = 12000 → "합계: 12000원" 반환 → console.log() 출력']
+    ]
+  },
+  'javascript-oop':{
+    url:'/learning-example-js-oop',file:'inheritance_example.js',steps:[
+    ['.entry',37,'1. 최상위 코드에서 makeDog("초코")를 호출합니다.','[예시 흐름] 인자 name = "초코" → makeDog()로 전달'],
+    ['[data-name="makeDog"]',32,'2. makeDog 안에서 new Dog(name)으로 객체를 만들고 dog.learn("앉아")를 호출합니다.','[예시 흐름] new Dog("초코") → dog 객체 생성 → dog.learn("앉아") 호출'],
+    ['[data-name="Dog"] [data-name="constructor"]',17,'3. Dog는 Animal을 상속합니다(extends). super(name)으로 부모 constructor를 먼저 실행합니다.','[예시 흐름] name = "초코" → Animal constructor에서 this.name = "초코" 저장',['super(name)은 무엇을 실행할까요?',['부모 클래스 Animal의 constructor','Dog의 speak 메서드','makeDog 함수'],0,'super(...)는 부모 클래스의 생성자를 호출합니다.']],
+    ['[data-name="Dog"] [data-name="learn"]',27,'4. Dog에 없는 this.introduce()는 부모 Animal에서 물려받은 메서드가 실행됩니다.','[예시 흐름] this.tricks = ["앉아"] → 부모 Animal.introduce() 호출'],
+    ['[data-name="Dog"] [data-name="speak"]',22,'5. Dog가 speak()를 재정의했기 때문에 Animal과 다른 결과를 냅니다. 점선은 정적 호출 관계이며 실제 실행 기록은 아닙니다.','[예시 흐름] Animal.speak() → "..." / Dog.speak() → "멍멍"',['Dog 객체에서 introduce가 this.speak()를 부르면 어떤 speak가 실행될까요?',['Dog의 speak ("멍멍")','Animal의 speak ("...")','둘 다 실행'],0,'재정의(오버라이드)된 메서드는 실제 객체의 클래스(Dog) 것이 실행됩니다.']]
+    ]
+  },
   csharp:{
     url:'/learning-example-csharp',file:'LearningExample.cs',steps:[
     ['.entry',27,'1. Main에서 시작합니다. new Order()로 객체를 만듭니다.','[예시 흐름] new Order() → 새 객체(order) 생성, price = 12000'],
@@ -513,6 +535,83 @@ const LESSONS={
     ['[data-name^="FormatTotal("]',14,'5. FormatTotal이 가격을 문장으로 바꿉니다. 점선은 정적 호출 관계이며 실제 실행 기록은 아닙니다.','[예시 흐름] value = 12000 → "합계: 12000원" 반환 → WriteLine() 출력']
     ]
   }
+};
+// Self-check questions for lessons whose steps do not embed one: {lessonKey: {stepIndex: [question, options, answerIndex, explanation]}}.
+const ORDER_QUIZ_CLASS=['Order와 order의 관계로 맞는 것은?',['Order는 설계도(클래스), order는 그것으로 만든 객체','둘은 같은 것이다','order가 Order를 만든다'],0,'클래스는 설계도이고, 그것으로 만든 값이 객체(인스턴스)입니다.'];
+const QUIZZES={
+  python:{1:ORDER_QUIZ_CLASS,3:['receipt 안의 self.total()에서 self는 무엇일까요?',['receipt를 호출한 order 객체','Order 클래스 자체','format_total 함수'],0,'메서드의 첫 번째 인자 self는 그 메서드를 호출한 객체입니다.']},
+  'python-oop':{2:['super().__init__(name)은 무엇을 실행할까요?',['부모 클래스 Animal의 __init__','Dog의 speak 메서드','make_dog 함수'],0,'super()는 부모 클래스를 가리키므로 Animal.__init__이 실행됩니다.'],4:['Dog 객체에서 introduce가 self.speak()를 부르면 어떤 speak가 실행될까요?',['Dog의 speak ("멍멍")','Animal의 speak ("...")','둘 다 실행'],0,'재정의(오버라이드)된 메서드는 실제 객체의 클래스(Dog) 것이 실행됩니다.']},
+  java:{1:ORDER_QUIZ_CLASS,3:['receipt() 안의 total()은 어느 객체의 메서드를 부를까요?',['receipt를 호출한 order 객체','새로 만든 다른 Order 객체','LearningExample 클래스'],0,'같은 클래스의 메서드를 이름만으로 부르면 this(현재 객체)의 메서드가 호출됩니다.']},
+  csharp:{1:ORDER_QUIZ_CLASS,3:['Receipt() 안의 Total()은 어느 객체의 메서드를 부를까요?',['Receipt를 호출한 order 객체','새로 만든 다른 Order 객체','LearningExample 클래스'],0,'같은 클래스의 메서드를 이름만으로 부르면 this(현재 객체)의 메서드가 호출됩니다.']}
+};
+const quizEl=document.querySelector('#quiz');
+function showQuiz(quiz){
+  quizEl.replaceChildren();
+  quizEl.hidden=!quiz;
+  if(!quiz)return;
+  const [question,options,answer,explanation]=quiz;
+  const title=document.createElement('strong');
+  title.textContent='확인 문제 · '+question;
+  const result=document.createElement('p');
+  result.setAttribute('role','status');
+  quizEl.append(title);
+  options.forEach((text,i)=>{
+    const b=document.createElement('button');
+    b.textContent=text;
+    b.onclick=()=>{
+      for(const other of quizEl.querySelectorAll('button'))other.classList.remove('correct','wrong');
+      b.classList.add(i===answer?'correct':'wrong');
+      result.textContent=(i===answer?'✅ 정답입니다. ':'❌ 다시 생각해 보세요. ')+(i===answer?explanation:'');
+    };
+    quizEl.append(b);
+  });
+  quizEl.append(result);
+}
+// Same "Order" concept in each language, for side-by-side comparison.
+const CONCEPTS={
+  python:{클래스:'.cls[data-name="Order"]',생성자:'[data-name="__init__"]',메서드:'[data-name="receipt"]',시작점:'.entry'},
+  java:{클래스:'.cls[data-name="Order"]',생성자:'[data-name="Order()"]',메서드:'[data-name^="receipt("]',시작점:'.entry'},
+  csharp:{클래스:'.cls[data-name="Order"]',생성자:'[data-name="Order()"]',메서드:'[data-name^="Receipt("]',시작점:'.entry'},
+  typescript:{클래스:'.cls[data-name="Order"]',생성자:'[data-name="constructor"]',메서드:'[data-name="receipt"]',시작점:'.entry'}
+};
+const CONCEPT_HELP={클래스:'클래스: 객체를 만드는 설계도입니다.',생성자:'생성자: 객체를 만들 때 데이터를 준비합니다 (Python __init__ · Java/C# 클래스 이름 · TS constructor).',메서드:'메서드: 객체가 가진 기능입니다.',시작점:'시작점: 프로그램이 처음 실행되는 곳입니다 (Python if __name__ · Java/C# main · TS 최상위 코드).'};
+document.querySelector('#compare').onclick=async()=>{
+  const first=document.querySelector('#lesson-language').value.split('-')[0];
+  const second=document.querySelector('#compare-language').value;
+  const keys=[...new Set([CONCEPTS[first]?first:'python',second])];
+  if(keys.length<2){help.textContent='서로 다른 두 언어를 선택하세요.';return}
+  const files=[];
+  for(const key of keys){
+    const lesson=LESSONS[key];
+    const response=await fetch(lesson.url);
+    if(!response.ok){help.textContent='비교 예제를 불러오지 못했습니다.';return}
+    await load(new File([await response.text()],lesson.file));
+    files.push([key,output.lastElementChild]);
+  }
+  showQuiz(null);
+  relations.replaceChildren();
+  help.textContent='같은 주문 예제를 두 언어로 나란히 띄웠습니다. 개념 버튼을 눌러 대응하는 부분을 비교하세요.';
+  for(const concept of Object.keys(CONCEPT_HELP)){
+    const b=document.createElement('button');
+    b.textContent=concept;
+    b.onclick=()=>{
+      output.querySelectorAll('.focused').forEach(n=>n.classList.remove('focused'));
+      for(const [key,file] of files){
+        const node=file.isConnected&&file.querySelector(CONCEPTS[key][concept]);
+        if(!node)continue;
+        file.open=true;
+        for(let n=node;n&&n!==output;n=n.parentElement)if(n.matches('details'))n.open=true;
+        node.classList.add('focused');
+      }
+      help.textContent=CONCEPT_HELP[concept];
+      redraw();
+    };
+    relations.append(b);
+  }
+  const [,firstFile]=files[0];
+  for(const [,file] of files)file.open=true;
+  redraw();
+  focusNode(firstFile.querySelector('.entry')||firstFile);
 };
 function clearLessonHighlight(){
   for(const s of output.querySelectorAll('.lesson-line')){
@@ -619,16 +718,19 @@ document.querySelector('#lesson').onclick=async()=>{
 function showStep(){
   if(!lessonFile?.isConnected){
     clearLessonHighlight();
+    showQuiz(null);
+    document.querySelector('#next-lesson').hidden=true;
     return
   }
   const steps=(LESSONS[lessonKey]||LESSONS.python).steps;
-  const [selector,lineNo,message,flow]=steps[lessonStep];
+  const [selector,lineNo,message,flow,quiz]=steps[lessonStep];
   const node=lessonFile.querySelector(selector);
   if(!node)return;
   node.open=true;
   highlightLine(node,lineNo);
   focusNode(node);
   help.textContent=message+(flow?'\n'+flow:'');
+  showQuiz(quiz||QUIZZES[lessonKey]?.[lessonStep]);
   document.querySelector('#next-lesson').textContent=lessonStep===steps.length-1?'처음부터':'다음 단계';
 }
 document.querySelector('#next-lesson').onclick=()=>{
@@ -670,7 +772,7 @@ document.querySelector('#find-entry').onclick=()=>{
   help.textContent=entries.length?'시작점을 선택해 코드를 살펴보세요.':'시작점을 찾지 못했습니다. 탐색 목록에서 클래스나 함수를 선택하세요.';
   for(const node of entries){
     const b=document.createElement('button');
-    b.textContent=node.closest('.file').dataset.path+' · '+node.dataset.name;
+    b.textContent=node.closest('.file').dataset.path+' · '+(node.dataset.name||node.querySelector(':scope > summary > b')?.textContent||'시작점');
     b.onclick=()=>{
       node.open=true;
       focusNode(node)
@@ -857,6 +959,10 @@ function clearWorkspace(){
   }
   activeCalls.clear();
   relations.replaceChildren();
+  clearLessonHighlight();
+  showQuiz(null);
+  lessonFile=null;
+  document.querySelector('#next-lesson').hidden=true;
   refreshTree();
   hint.hidden=false;
   redraw()
@@ -899,7 +1005,7 @@ function refreshNotes(){
   for(const node of output.querySelectorAll('details')){
     const memo=node.querySelector(':scope > .memo textarea'),bookmarked=node.dataset.bookmark==='true';
     if(!memo&&!bookmarked)continue;
-    const title=node.closest('.file').dataset.path+' · '+(node.dataset.name||'파일');
+    const title=node.closest('.file').dataset.path+' · '+(node.dataset.name||(node.classList.contains('file')?'파일':node.querySelector(':scope > summary > b')?.textContent||'항목'));
     if(!(title+' '+(memo?.value||'')).toLowerCase().includes(query))continue;
     const button=document.createElement('button');
     button.textContent=(bookmarked?'★ ':'📝 ')+title;
